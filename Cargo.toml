@@ -1,0 +1,16 @@
+[package]
+edition = "2021"
+name = "eo2"
+version = "0.1.0"
+
+[dependencies]
+argh = "0.1"
+az = "1"
+bytemuck = "1"
+directories-next = "2"
+eframe = "0.19"
+egui = "0.19"
+figment = { version = "0.10", features = ["toml"] }
+image = "0.24"
+serde = { version = "1", features = ["derive"] }
+toml = "0.5"
