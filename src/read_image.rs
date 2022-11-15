@@ -61,7 +61,7 @@ fn load_decoder<V: DecoderVisitor>(
 	}
 
 	visitors! {
-		// Avif => avif::AvifDecoder,
+		Avif => avif::AvifDecoder,
 		Png => @png png::PngDecoder,
 		Gif => @animated gif::GifDecoder,
 		Jpeg => jpeg::JpegDecoder,
@@ -74,6 +74,7 @@ fn load_decoder<V: DecoderVisitor>(
 		Hdr => hdr::HdrAdapter,
 		OpenExr => openexr::OpenExrDecoder,
 		Pnm => pnm::PnmDecoder,
+		Qoi => qoi::QoiDecoder,
 		Farbfeld => farbfeld::FarbfeldDecoder,
 	}
 }
@@ -131,12 +132,14 @@ impl DecoderVisitor for Visitor {
 				})
 			})
 			.collect::<Result<Vec<_>, _>>()?;
+
 		let (width, height) = size.ok_or_else(|| {
 			ImageError::Decoding(DecodingError::new(
 				ImageFormatHint::Exact(format),
 				"no frames",
 			))
 		})?;
+
 		Ok(Image {
 			format,
 			width,
