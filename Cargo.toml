@@ -1,6 +1,7 @@
 [package]
 edition = "2021"
 name = "eo2"
+resolver = "2"
 version = "0.1.0"
 
 [dependencies]
@@ -11,6 +12,12 @@ directories-next = "2"
 eframe = "0.19"
 egui = "0.19"
 figment = { version = "0.10", features = ["toml"] }
-image = "0.24"
+image = { version = "0.24", path = "image", features = [
+	"jpeg_rayon",
+	"avif-decoder",
+] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
+
+[workspace]
+members = [".", "image"]
