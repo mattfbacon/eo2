@@ -18,21 +18,17 @@
 #![allow(clippy::let_underscore_drop)]
 #![forbid(unsafe_code)]
 
-use std::path::Path;
-
 use eframe::{CreationContext, NativeOptions};
 use egui::style::Margin;
-use egui::{
-	Color32, Context, Frame, Painter, Rect, Rounding, ScrollArea, TextureFilter, TextureHandle, Vec2,
-};
+use egui::{Color32, Context, Frame, Painter, Rect, Rounding, ScrollArea, Vec2};
 use image::error::ImageError;
 use image::ImageFormat;
 
 use self::args::Args;
-use self::read_image::Seconds;
 
 mod args;
 mod config;
+mod logic;
 mod read_image;
 mod widgets;
 
@@ -47,122 +43,16 @@ fn main() {
 	);
 }
 
-#[derive(Debug, Clone, Copy)]
-struct CurrentFrame {
-	idx: usize,
-	remaining: Seconds,
-}
-
-impl CurrentFrame {
-	fn new(remaining: impl Into<Seconds>) -> Self {
-		Self {
-			idx: 0,
-			remaining: remaining.into(),
-		}
-	}
-
-	fn advance(&mut self, elapsed: f32, frames: &[(TextureHandle, Seconds)]) {
-		// note: this intentionally never advances more than one frame
-		if self.remaining.advance(elapsed) {
-			self.idx = (self.idx + 1) % frames.len();
-			self.remaining = frames[self.idx].1;
-		}
-	}
-}
-
-enum ImageInner {
-	Animated {
-		textures: Vec<(TextureHandle, Seconds)>,
-		current_frame: CurrentFrame,
-		playing: bool,
-	},
-	Single(TextureHandle),
-}
-
-impl ImageInner {
-	fn kind(&self) -> &'static str {
-		match self {
-			Self::Animated { .. } => "Animated",
-			Self::Single(..) => "Static",
-		}
-	}
-}
-
-struct Image {
-	format: ImageFormat,
-	width: u32,
-	height: u32,
-	inner: ImageInner,
-}
-
-fn load_image(ctx: &Context, path: &Path) -> Result<Image, ImageError> {
-	fn load_texture(
-		ctx: &Context,
-		width: u32,
-		height: u32,
-		frame: Vec<Color32>,
-		idx: usize,
-	) -> TextureHandle {
-		ctx.load_texture(
-			idx.to_string(),
-			egui::ColorImage {
-				size: [width.try_into().unwrap(), height.try_into().unwrap()],
-				pixels: frame,
-			},
-			TextureFilter::Linear,
-		)
-	}
-
-	let read_image::Image {
-		format,
-		width,
-		height,
-		frames,
-	} = read_image::Image::read(path)?;
-	let inner = match frames.len() {
-		0 => unreachable!(),
-		1 => ImageInner::Single(load_texture(
-			ctx,
-			width,
-			height,
-			frames.into_iter().next().unwrap().0.into(),
-			0,
-		)),
-		_ => {
-			let current_delay = frames[0].1;
-			let textures = frames
-				.into_iter()
-				.enumerate()
-				.map(|(idx, (frame, delay))| {
-					let texture = load_texture(ctx, width, height, frame.into(), idx);
-					(texture, delay)
-				})
-				.collect();
-			ImageInner::Animated {
-				textures,
-				current_frame: CurrentFrame::new(current_delay),
-				playing: true,
-			}
-		}
-	};
-	Ok(Image {
-		format,
-		width,
-		height,
-		inner,
-	})
-}
-
 struct App {
 	config: config::Config,
 	path: String,
-	image: Result<Image, ImageError>,
+	image: Result<logic::Image, ImageError>,
 }
 
 impl App {
 	fn new(args: &Args, cc: &CreationContext<'_>) -> Self {
 		let config = config::load();
-		let image = load_image(&cc.egui_ctx, &args.path);
+		let image = logic::Image::load(&cc.egui_ctx, &args.path);
 		Self {
 			config,
 			path: args.path.display().to_string(),
@@ -318,17 +208,11 @@ impl App {
 				frame.set_fullscreen(fullscreen);
 			}
 
-			if matches!(self.image, Ok(..)) {
+			if self.image.is_ok() {
 				ui.toggle_value(&mut self.config.show_sidebar, "ℹ");
 			}
 
-			if matches!(
-				self.image,
-				Ok(Image {
-					inner: ImageInner::Animated { .. },
-					..
-				})
-			) {
+			if self.image.as_ref().map_or(false, logic::Image::is_animated) {
 				ui.toggle_value(&mut self.config.show_frames, "🎞");
 			}
 		};
@@ -387,8 +271,8 @@ impl App {
 			return;
 		}
 
-		let Ok(Image {
-				inner: ImageInner::Animated {
+		let Ok(logic::Image {
+				inner: logic::ImageInner::Animated {
 					textures,
 					current_frame,
 					..
@@ -429,10 +313,7 @@ impl App {
 								.selected(idx == current_frame.idx);
 							let response = ui.add(button);
 							if response.clicked() {
-								*current_frame = CurrentFrame {
-									idx,
-									remaining: *frame_time,
-								};
+								current_frame.move_to(idx, *frame_time);
 							}
 							response.on_hover_ui(|ui| {
 								ui.label(format!("Frame {}", idx + 1));
@@ -451,10 +332,10 @@ impl App {
 				ui.centered_and_justified(|ui| {
 					self.config.background.draw(ui.painter(), ui.max_rect());
 					match &mut image.inner {
-						ImageInner::Single(texture) => {
+						logic::ImageInner::Single(texture) => {
 							ui.add(widgets::Image::for_texture(texture));
 						}
-						ImageInner::Animated {
+						logic::ImageInner::Animated {
 							textures,
 							current_frame,
 							playing,

@@ -41,6 +41,7 @@ impl Config {
 			.expect("loading configuration")
 	}
 
+	/*
 	pub fn save(&self) {
 		std::fs::write(
 			config_path(),
@@ -48,6 +49,7 @@ impl Config {
 		)
 		.expect("writing configuration");
 	}
+	*/
 }
 
 pub fn load() -> Config {
