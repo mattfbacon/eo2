@@ -18,11 +18,12 @@
 #![allow(clippy::let_underscore_drop)]
 #![forbid(unsafe_code)]
 
+mod args;
 mod config;
 mod image_widgets;
 mod read_image;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use eframe::{CreationContext, NativeOptions};
 use egui::style::Margin;
@@ -32,16 +33,10 @@ use egui::{
 use image::error::ImageError;
 use image::ImageFormat;
 
-/// View images
-#[derive(argh::FromArgs)]
-struct Args {
-	/// the image to open
-	#[argh(positional)]
-	path: PathBuf,
-}
+use self::args::Args;
 
 fn main() {
-	let args: Args = argh::from_env();
+	let args = args::load();
 
 	let native_options = NativeOptions::default();
 	eframe::run_native(
