@@ -4,15 +4,19 @@ use std::path::Path;
 use egui::Color32;
 use image::error::{DecodingError, ImageError, ImageFormatHint};
 use image::io::Limits;
-use image::{AnimationDecoder, Delay, DynamicImage, ImageDecoder, ImageFormat};
+use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
 
-pub type Frame = Vec<Color32>;
+pub use self::seconds::Seconds;
+
+pub mod seconds;
+
+pub type Frame = Box<[Color32]>;
 
 pub struct Image {
 	pub format: ImageFormat,
 	pub width: u32,
 	pub height: u32,
-	pub frames: Vec<(Frame, Delay)>,
+	pub frames: Vec<(Frame, Seconds)>,
 }
 
 trait DecoderVisitor {
@@ -102,8 +106,8 @@ impl DecoderVisitor for Visitor {
 			width,
 			height,
 			frames: vec![(
-				bytemuck::allocation::cast_vec(image.into_raw()),
-				Delay::from_numer_denom_ms(1, 1), // doesn't matter
+				bytemuck::allocation::cast_vec(image.into_raw()).into(),
+				Seconds(1.0), // doesn't matter
 			)],
 		})
 	}
@@ -126,8 +130,8 @@ impl DecoderVisitor for Visitor {
 					assert!(frame.top() == 0 && frame.left() == 0);
 					let delay = frame.delay();
 					(
-						bytemuck::allocation::cast_vec(frame.into_buffer().into_raw()),
-						delay,
+						bytemuck::allocation::cast_vec(frame.into_buffer().into_raw()).into(),
+						delay.into(),
 					)
 				})
 			})

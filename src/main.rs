@@ -18,11 +18,6 @@
 #![allow(clippy::let_underscore_drop)]
 #![forbid(unsafe_code)]
 
-mod args;
-mod config;
-mod image_widgets;
-mod read_image;
-
 use std::path::Path;
 
 use eframe::{CreationContext, NativeOptions};
@@ -34,6 +29,12 @@ use image::error::ImageError;
 use image::ImageFormat;
 
 use self::args::Args;
+use self::read_image::Seconds;
+
+mod args;
+mod config;
+mod read_image;
+mod widgets;
 
 fn main() {
 	let args = args::load();
@@ -42,35 +43,8 @@ fn main() {
 	eframe::run_native(
 		"Image Viewer",
 		native_options,
-		Box::new(|cc| Box::new(App::new(args, cc))),
+		Box::new(move |cc| Box::new(App::new(&args, cc))),
 	);
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Seconds(f32);
-
-impl Seconds {
-	fn advance(&mut self, elapsed: f32) -> bool {
-		self.0 -= elapsed;
-		self.over()
-	}
-
-	fn over(self) -> bool {
-		self.0 < 0.0
-	}
-}
-
-impl From<Seconds> for std::time::Duration {
-	fn from(seconds: Seconds) -> Self {
-		Self::from_secs_f32(seconds.0)
-	}
-}
-
-impl From<image::Delay> for Seconds {
-	fn from(delay: image::Delay) -> Self {
-		let (numer, denom) = delay.numer_denom_ms();
-		Self((az::cast::<_, f32>(numer) / az::cast::<_, f32>(denom)) * 0.001)
-	}
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -151,7 +125,7 @@ fn load_image(ctx: &Context, path: &Path) -> Result<Image, ImageError> {
 			ctx,
 			width,
 			height,
-			frames.into_iter().next().unwrap().0,
+			frames.into_iter().next().unwrap().0.into(),
 			0,
 		)),
 		_ => {
@@ -160,8 +134,8 @@ fn load_image(ctx: &Context, path: &Path) -> Result<Image, ImageError> {
 				.into_iter()
 				.enumerate()
 				.map(|(idx, (frame, delay))| {
-					let texture = load_texture(ctx, width, height, frame, idx);
-					(texture, delay.into())
+					let texture = load_texture(ctx, width, height, frame.into(), idx);
+					(texture, delay)
 				})
 				.collect();
 			ImageInner::Animated {
@@ -186,7 +160,7 @@ struct App {
 }
 
 impl App {
-	fn new(args: Args, cc: &CreationContext<'_>) -> Self {
+	fn new(args: &Args, cc: &CreationContext<'_>) -> Self {
 		let config = config::load();
 		let image = load_image(&cc.egui_ctx, &args.path);
 		Self {
@@ -194,16 +168,6 @@ impl App {
 			path: args.path.display().to_string(),
 			image,
 		}
-	}
-}
-
-fn image_size(actual: Vec2, max: Vec2) -> Vec2 {
-	if actual.x < max.x && actual.y < max.y {
-		actual
-	} else {
-		let x_ratio = max.x / actual.x;
-		let y_ratio = max.y / actual.y;
-		actual * std::cmp::min_by(x_ratio, y_ratio, |a, b| a.partial_cmp(b).unwrap())
 	}
 }
 
@@ -424,8 +388,6 @@ impl App {
 		}
 
 		let Ok(Image {
-				width,
-				height,
 				inner: ImageInner::Animated {
 					textures,
 					current_frame,
@@ -434,13 +396,7 @@ impl App {
 				..
 			}) = &mut self.image else { return; };
 
-		let outer_frame = Frame::group(&ctx.style());
 		let outer_frame_size = Vec2::splat(100.0); // XXX 100 is arbitrary; make it configurable?
-		let inner_frame_size = outer_frame_size - outer_frame.inner_margin.sum();
-		let image_size = image_size(
-			Vec2::new(az::cast(*width), az::cast(*height)),
-			inner_frame_size,
-		);
 
 		let frame_style = {
 			let style = ctx.style();
@@ -459,7 +415,7 @@ impl App {
 				show_columns(
 					egui::ScrollArea::horizontal(),
 					ui,
-					image_size.x,
+					outer_frame_size.x,
 					textures.len(),
 					|ui, visible_range| {
 						// iterate over an enumerated subslice with correct indices
@@ -469,20 +425,19 @@ impl App {
 							.enumerate()
 							.map(|(idx, v)| (idx + visible_range.start, v))
 						{
-							if ui
-								.add(
-									self::image_widgets::ImageButton::new(texture, outer_frame_size)
-										.selected(idx == current_frame.idx),
-								)
-								.clicked()
-							{
+							let button = widgets::ImageButton::new(texture, outer_frame_size)
+								.selected(idx == current_frame.idx);
+							let response = ui.add(button);
+							if response.clicked() {
 								*current_frame = CurrentFrame {
 									idx,
 									remaining: *frame_time,
 								};
 							}
+							response.on_hover_ui(|ui| {
+								ui.label(format!("Frame {}", idx + 1));
+							});
 							// TODO show frame times
-							// TODO indicate current frame
 						}
 					},
 				);
@@ -494,11 +449,10 @@ impl App {
 		panel.show(ctx, |ui| match &mut self.image {
 			Ok(image) => {
 				ui.centered_and_justified(|ui| {
-					let rect = ui.max_rect();
-					self.config.background.draw(ui.painter(), rect);
+					self.config.background.draw(ui.painter(), ui.max_rect());
 					match &mut image.inner {
 						ImageInner::Single(texture) => {
-							ui.image(texture.id(), image_size(texture.size_vec2(), rect.size()));
+							ui.add(widgets::Image::for_texture(texture));
 						}
 						ImageInner::Animated {
 							textures,
@@ -507,7 +461,7 @@ impl App {
 						} => {
 							let (current_texture, _) = &textures[current_frame.idx];
 							if ui
-								.add(image_widgets::Image::for_texture(current_texture).sense(egui::Sense::click()))
+								.add(widgets::Image::for_texture(current_texture).sense(egui::Sense::click()))
 								.clicked()
 							{
 								*playing = !*playing;
