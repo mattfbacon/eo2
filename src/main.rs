@@ -57,6 +57,7 @@ struct App {
 }
 
 impl App {
+	#[allow(clippy::needless_pass_by_value)] // consistency
 	fn new(args: Args, config: Config, cc: &CreationContext<'_>) -> Self {
 		let image = logic::Image::load(&cc.egui_ctx, &args.path);
 		Self {
