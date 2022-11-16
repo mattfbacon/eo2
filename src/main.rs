@@ -269,7 +269,7 @@ impl App {
 				inner: logic::ImageInner::Animated {
 					textures,
 					current_frame,
-					..
+					playing,
 				},
 				..
 			}) = &mut self.image else { return; };
@@ -307,6 +307,8 @@ impl App {
 								.selected(idx == current_frame.idx);
 							let response = ui.add(button);
 							if response.clicked() {
+								// always stop playing if a user selects a frame
+								*playing = false;
 								current_frame.move_to(idx, *frame_time);
 							}
 							// inline of on_hover_text that lazily evaluates `format!`
