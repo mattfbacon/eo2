@@ -25,6 +25,7 @@ use image::error::ImageError;
 use image::ImageFormat;
 
 use self::args::Args;
+use self::config::Config;
 
 mod args;
 mod config;
@@ -34,29 +35,35 @@ mod widgets;
 
 fn main() {
 	let args = args::load();
+	let config = config::load();
 
-	let native_options = NativeOptions::default();
+	let mut native_options = NativeOptions::default();
+	if let Some(theme) = config.theme {
+		native_options.follow_system_theme = false;
+		native_options.default_theme = theme;
+	}
 	eframe::run_native(
 		"Image Viewer",
 		native_options,
-		Box::new(move |cc| Box::new(App::new(&args, cc))),
+		Box::new(move |cc| Box::new(App::new(args, config, cc))),
 	);
 }
 
 struct App {
-	config: config::Config,
+	config: Config,
 	path: String,
 	image: Result<logic::Image, ImageError>,
+	settings_open: bool,
 }
 
 impl App {
-	fn new(args: &Args, cc: &CreationContext<'_>) -> Self {
-		let config = config::load();
+	fn new(args: Args, config: Config, cc: &CreationContext<'_>) -> Self {
 		let image = logic::Image::load(&cc.egui_ctx, &args.path);
 		Self {
 			config,
 			path: args.path.display().to_string(),
 			image,
+			settings_open: false,
 		}
 	}
 }
@@ -118,30 +125,33 @@ impl config::Background {
 			}
 		}
 
-		match self {
-			Self::Default => draw_solid(
-				painter,
-				rect,
-				painter.ctx().style().visuals.widgets.noninteractive.bg_fill,
-			),
-			Self::Light => draw_solid(painter, rect, Color32::from_gray(250)),
-			Self::Dark => draw_solid(painter, rect, Color32::from_gray(10)),
-			Self::LightChecker => {
-				draw_checker(
-					painter,
-					rect,
-					Color32::from_gray(250),
-					Color32::from_gray(230),
-				);
+		let dark = match self.color {
+			config::BackgroundColor::Default => painter.ctx().style().visuals.dark_mode,
+			config::BackgroundColor::Light => false,
+			config::BackgroundColor::Dark => true,
+		};
+
+		let (primary_color, secondary_color) = {
+			const CONTRAST: u8 = 12;
+			if dark {
+				const BASE: u8 = 27;
+				(
+					Color32::from_gray(BASE),
+					Color32::from_gray(BASE + CONTRAST),
+				)
+			} else {
+				const BASE: u8 = 248;
+				(
+					Color32::from_gray(BASE),
+					Color32::from_gray(BASE - CONTRAST),
+				)
 			}
-			Self::DarkChecker => {
-				draw_checker(
-					painter,
-					rect,
-					Color32::from_gray(10),
-					Color32::from_gray(30),
-				);
-			}
+		};
+
+		if self.checker {
+			draw_checker(painter, rect, primary_color, secondary_color);
+		} else {
+			draw_solid(painter, rect, primary_color);
 		}
 	}
 }
@@ -215,6 +225,10 @@ impl App {
 			if self.image.as_ref().map_or(false, logic::Image::is_animated) {
 				ui.toggle_value(&mut self.config.show_frames, "🎞");
 			}
+
+			ui.toggle_value(&mut self.settings_open, "⛭");
+
+			self.config.light_dark_toggle_button(ui);
 		};
 
 		panel.show(ctx, |ui| {
@@ -295,6 +309,7 @@ impl App {
 							if response.clicked() {
 								current_frame.move_to(idx, *frame_time);
 							}
+							// inline of on_hover_text that lazily evaluates `format!`
 							response.on_hover_ui(|ui| {
 								ui.label(format!("Frame {}", idx + 1));
 							});
@@ -341,13 +356,29 @@ impl App {
 			}
 		});
 	}
+
+	fn show_settings(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+		let window = egui::Window::new("Settings")
+			.open(&mut self.settings_open)
+			.resizable(false)
+			.collapsible(true);
+		window.show(ctx, |ui| {
+			self.config.ui(ui);
+		});
+	}
 }
 
 impl eframe::App for App {
 	fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+		self.show_settings(ctx, frame);
 		self.show_actions(ctx, frame);
 		self.show_sidebar(ctx, frame);
 		self.show_frames(ctx, frame);
 		self.show_central(ctx, frame);
+	}
+
+	// NB save is not called without the persistence feature, so on_exit is a better option
+	fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+		self.config.save();
 	}
 }

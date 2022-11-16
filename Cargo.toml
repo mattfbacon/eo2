@@ -9,7 +9,7 @@ argh = "0.1"
 az = "1"
 bytemuck = "1"
 directories-next = "2"
-eframe = "0.19"
+eframe = { version = "0.19", features = ["serde"] }
 egui = "0.19"
 figment = { version = "0.10", features = ["toml"] }
 image = { version = "0.24", path = "image", features = [

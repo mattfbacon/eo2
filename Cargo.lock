@@ -959,6 +959,7 @@ dependencies = [
  "glutin",
  "js-sys",
  "percent-encoding",
+ "serde",
  "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
