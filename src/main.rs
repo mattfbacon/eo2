@@ -214,20 +214,29 @@ impl App {
 		};
 
 		let right = |ui: &mut egui::Ui| {
-			let mut fullscreen = frame.info().window_info.fullscreen;
-			if ui.toggle_value(&mut fullscreen, "⛶").changed() {
-				frame.set_fullscreen(fullscreen);
+			{
+				let mut fullscreen = frame.info().window_info.fullscreen;
+				if ui
+					.toggle_value(&mut fullscreen, "⛶")
+					.on_hover_text("Toggle fullscreen")
+					.changed()
+				{
+					frame.set_fullscreen(fullscreen);
+				}
 			}
 
 			if self.image.is_ok() {
-				ui.toggle_value(&mut self.config.show_sidebar, "ℹ");
+				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")
+					.on_hover_text("Toggle sidebar");
 			}
 
 			if self.image.as_ref().map_or(false, logic::Image::is_animated) {
-				ui.toggle_value(&mut self.config.show_frames, "🎞");
+				ui.toggle_value(&mut self.config.show_frames, "🎞")
+					.on_hover_text("Toggle frames");
 			}
 
-			ui.toggle_value(&mut self.settings_open, "⛭");
+			ui.toggle_value(&mut self.settings_open, "⛭")
+				.on_hover_text("Toggle settings window");
 
 			self.config.light_dark_toggle_button(ui);
 		};
