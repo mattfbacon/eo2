@@ -22,7 +22,7 @@ pub struct Config {
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Default)]
 pub struct Background {
 	#[serde(default)]
-	pub checker: bool,
+	pub checkered: bool,
 	#[serde(default)]
 	pub color: BackgroundColor,
 }
@@ -68,7 +68,7 @@ impl Background {
 						}
 					})
 			});
-			rows.row("Checkered", |ui| ui.checkbox(&mut self.checker, ""));
+			rows.row("Checkered", |ui| ui.checkbox(&mut self.checkered, ""));
 		});
 	}
 }

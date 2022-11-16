@@ -149,7 +149,7 @@ impl config::Background {
 			}
 		};
 
-		if self.checker {
+		if self.checkered {
 			draw_checker(painter, rect, primary_color, secondary_color);
 		} else {
 			draw_solid(painter, rect, primary_color);
