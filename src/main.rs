@@ -226,42 +226,22 @@ impl App {
 	}
 
 	fn show_sidebar(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-		fn key(ui: &mut egui::Ui, s: &str) {
-			ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-				ui.label(s);
-			});
-		}
-
 		if !self.config.show_sidebar {
 			return;
 		}
 
 		let Ok(image) = &self.image else { return };
 
-		let properties = |ui: &mut egui::Ui| {
-			key(ui, "Width");
-			ui.label(image.width.to_string());
-			ui.end_row();
-
-			key(ui, "Height");
-			ui.label(image.height.to_string());
-			ui.end_row();
-
-			key(ui, "Format");
-			ui.label(format_to_string(image.format));
-			ui.end_row();
-
-			key(ui, "Kind");
-			ui.label(image.inner.kind());
-			ui.end_row();
-		};
-
 		egui::SidePanel::right("properties").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
 				ui.heading("Properties");
-				egui::Grid::new("properties-grid")
-					.num_columns(2)
-					.show(ui, properties);
+			});
+
+			widgets::KeyValue::new("properties-kv").show(ui, |mut rows| {
+				rows.row("Width", |ui| ui.label(image.width.to_string()));
+				rows.row("Height", |ui| ui.label(image.height.to_string()));
+				rows.row("Format", |ui| ui.label(format_to_string(image.format)));
+				rows.row("Kind", |ui| ui.label(image.inner.kind()));
 			});
 		});
 	}
