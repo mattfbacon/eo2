@@ -107,7 +107,7 @@ impl DecoderVisitor for Visitor {
 			height,
 			frames: vec![(
 				bytemuck::allocation::cast_vec(image.into_raw()).into(),
-				Seconds(1.0), // doesn't matter
+				Seconds::new_secs(1), // doesn't matter
 			)],
 		})
 	}
