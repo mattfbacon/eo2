@@ -1,9 +1,11 @@
 use egui::Vec2;
 
+pub use self::columns::ShowColumnsExt;
 pub use self::image::Image;
 pub use self::image_button::ImageButton;
 pub use self::key_value::KeyValue;
 
+pub mod columns;
 pub mod image;
 pub mod image_button;
 pub mod key_value;
