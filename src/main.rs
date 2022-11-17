@@ -18,6 +18,9 @@
 #![allow(clippy::let_underscore_drop)]
 #![forbid(unsafe_code)]
 
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
 use eframe::{CreationContext, NativeOptions};
 use egui::style::Margin;
 use egui::{Color32, Context, Frame, Painter, Rect, Rounding, Vec2};
@@ -50,23 +53,71 @@ fn main() {
 	);
 }
 
+struct OpenImage {
+	status: Result<(), ImageError>,
+	path: PathBuf,
+}
+
+#[derive(Default)]
+struct ImageState {
+	cache: HashMap<PathBuf, logic::Image>,
+	current: Option<OpenImage>,
+}
+
+impl ImageState {
+	fn current_path(&self) -> Option<&Path> {
+		self.current.as_ref().map(|open| &*open.path)
+	}
+
+	fn current(&self) -> Option<Result<&logic::Image, &ImageError>> {
+		self.current.as_ref().map(|open| {
+			open
+				.status
+				.as_ref()
+				.map(|()| self.cache.get(&open.path).unwrap())
+		})
+	}
+
+	fn current_mut(&mut self) -> Option<Result<&mut logic::Image, &ImageError>> {
+		self.current.as_ref().map(|open| {
+			open
+				.status
+				.as_ref()
+				.map(|()| self.cache.get_mut(&open.path).unwrap())
+		})
+	}
+
+	fn open(&mut self, ctx: &Context, path: PathBuf) {
+		if self.cache.contains_key(&path) {
+			self.current = Some(OpenImage {
+				path,
+				status: Ok(()),
+			});
+		} else {
+			let status = logic::Image::load(ctx, &path).map(|image| {
+				self.cache.insert(path.clone(), image);
+			});
+			self.current = Some(OpenImage { status, path });
+		}
+	}
+}
+
 struct App {
 	config: Config,
-	path: String,
-	image: Result<logic::Image, ImageError>,
+	image_state: ImageState,
 	settings_open: bool,
 }
 
 impl App {
 	#[allow(clippy::needless_pass_by_value)] // consistency
 	fn new(args: Args, config: Config, cc: &CreationContext<'_>) -> Self {
-		let image = logic::Image::load(&cc.egui_ctx, &args.path);
-		Self {
+		let mut ret = Self {
 			config,
-			path: args.path.display().to_string(),
-			image,
+			image_state: ImageState::default(),
 			settings_open: false,
-		}
+		};
+		ret.image_state.open(&cc.egui_ctx, args.path);
+		ret
 	}
 }
 
@@ -172,11 +223,13 @@ impl App {
 			egui::TopBottomPanel::top("actions").frame(frame)
 		};
 
-		let left = |ui: &mut egui::Ui| {
-			ui.label(&self.path);
+		let left = |this: &mut Self, ui: &mut egui::Ui| {
+			if let Some(current_path) = this.image_state.current_path() {
+				ui.label(current_path.display().to_string());
+			}
 		};
 
-		let right = |ui: &mut egui::Ui| {
+		let mut right = |this: &mut Self, ui: &mut egui::Ui| {
 			{
 				let mut fullscreen = frame.info().window_info.fullscreen;
 				if ui
@@ -188,26 +241,34 @@ impl App {
 				}
 			}
 
-			if self.image.is_ok() {
-				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")
+			if this
+				.image_state
+				.current()
+				.map_or(false, |current| current.is_ok())
+			{
+				ui.toggle_value(&mut this.config.show_sidebar, "ℹ")
 					.on_hover_text("Toggle sidebar");
 			}
 
-			if self.image.as_ref().map_or(false, logic::Image::is_animated) {
-				ui.toggle_value(&mut self.config.show_frames, "🎞")
+			if this.image_state.current().map_or(false, |current| {
+				current.map_or(false, logic::Image::is_animated)
+			}) {
+				ui.toggle_value(&mut this.config.show_frames, "🎞")
 					.on_hover_text("Toggle frames");
 			}
 
-			ui.toggle_value(&mut self.settings_open, "⛭")
+			ui.toggle_value(&mut this.settings_open, "⛭")
 				.on_hover_text("Toggle settings window");
 
-			self.config.light_dark_toggle_button(ui);
+			this.config.light_dark_toggle_button(ui);
 		};
 
 		panel.show(ctx, |ui| {
 			ui.horizontal(|ui| {
-				ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), left);
-				ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+				use egui::{Align, Layout};
+
+				ui.with_layout(Layout::left_to_right(Align::Center), |ui| left(self, ui));
+				ui.with_layout(Layout::right_to_left(Align::Center), |ui| right(self, ui));
 			});
 		});
 	}
@@ -217,7 +278,7 @@ impl App {
 			return;
 		}
 
-		let Ok(image) = &self.image else { return };
+		let Some(Ok(image)) = self.image_state.current() else { return };
 
 		egui::SidePanel::right("properties").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
@@ -238,14 +299,16 @@ impl App {
 			return;
 		}
 
-		let Ok(logic::Image {
+		let Some(Ok(
+			logic::Image {
 				inner: logic::ImageInner::Animated {
 					textures,
 					current_frame,
 					playing,
 				},
 				..
-			}) = &mut self.image else { return; };
+			}
+				)) = self.image_state.current_mut() else { return; };
 
 		let outer_frame_size = Vec2::splat(100.0); // XXX 100 is arbitrary; make it configurable?
 
@@ -295,8 +358,8 @@ impl App {
 
 	fn show_central(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		let panel = egui::CentralPanel::default().frame(Frame::none());
-		panel.show(ctx, |ui| match &mut self.image {
-			Ok(image) => {
+		panel.show(ctx, |ui| match self.image_state.current_mut() {
+			Some(Ok(image)) => {
 				ui.centered_and_justified(|ui| {
 					self.config.background.draw(ui.painter(), ui.max_rect());
 					match &mut image.inner {
@@ -324,8 +387,11 @@ impl App {
 					}
 				});
 			}
-			Err(error) => {
+			Some(Err(error)) => {
 				ui.heading(format!("error: {error:?}"));
+			}
+			None => {
+				ui.heading("no image open");
 			}
 		});
 	}
@@ -339,10 +405,107 @@ impl App {
 			self.config.ui(ui);
 		});
 	}
+
+	fn handle_global_keys(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+		use egui::Key;
+
+		let key = |key: Key| ctx.input_mut().consume_key(egui::Modifiers::NONE, key);
+
+		if key(Key::ArrowRight) {
+			self.move_right(ctx);
+		} else if key(Key::ArrowLeft) {
+			self.move_left(ctx);
+		}
+	}
+}
+
+#[derive(Clone, Copy)]
+enum MoveDirection {
+	Left,
+	Right,
+}
+
+impl MoveDirection {
+	fn before<T: Ord + ?Sized>(self, left: &T, right: &T) -> bool {
+		match self {
+			Self::Right => left < right,
+			Self::Left => left > right,
+		}
+	}
+
+	fn after<T: Ord + ?Sized>(self, left: &T, right: &T) -> bool {
+		match self {
+			Self::Right => left > right,
+			Self::Left => left < right,
+		}
+	}
+}
+
+impl App {
+	fn move_in(&mut self, ctx: &Context, direction: MoveDirection) {
+		let Some(current_path) = self.image_state.current_path() else { return; };
+
+		let parent = current_path.parent().unwrap(/* path must have a parent because it must be a file, though it may be empty. */);
+		let current_name = current_path.file_name().unwrap(/* ditto */).to_string_lossy();
+
+		let mut next_name: Option<String> = None;
+		let mut wrapped_name: Option<String> = None;
+
+		let readable_parent = if parent.as_os_str().is_empty() {
+			".".as_ref()
+		} else {
+			parent
+		};
+		for entry in readable_parent.read_dir().unwrap().map(Result::unwrap) {
+			if entry.file_type().unwrap().is_dir() {
+				continue;
+			}
+
+			let this_name = entry.file_name();
+
+			if image::ImageFormat::from_path(&this_name).is_err() {
+				continue;
+			}
+
+			let this_name = this_name.to_string_lossy().into_owned();
+
+			if wrapped_name
+				.as_ref()
+				.map_or(true, |first_name| direction.before(&this_name, first_name))
+			{
+				wrapped_name = Some(this_name.clone());
+			}
+
+			if direction.after(this_name.as_str(), current_name.as_ref())
+				&& next_name
+					.as_ref()
+					.map_or(true, |next_name| direction.before(&this_name, next_name))
+			{
+				next_name = Some(this_name);
+			}
+		}
+
+		let next_name = next_name.or(wrapped_name);
+		if let Some(next_name) = next_name {
+			self.image_state.open(ctx, parent.join(next_name));
+		}
+	}
+
+	fn move_right(&mut self, ctx: &Context) {
+		self.move_in(ctx, MoveDirection::Right);
+	}
+
+	fn move_left(&mut self, ctx: &Context) {
+		self.move_in(ctx, MoveDirection::Left);
+	}
 }
 
 impl eframe::App for App {
 	fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+		if !ctx.wants_keyboard_input() {
+			self.handle_global_keys(ctx, frame);
+		}
+
 		self.show_settings(ctx, frame);
 		self.show_actions(ctx, frame);
 		self.show_sidebar(ctx, frame);
