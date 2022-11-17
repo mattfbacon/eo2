@@ -488,7 +488,7 @@ impl App {
 				});
 			}
 			Some(Err(error)) => {
-				ui.heading(format!("error: {error:?}"));
+				ui.heading(format!("error: {error}"));
 			}
 			None => {
 				ui.heading("no image open");
