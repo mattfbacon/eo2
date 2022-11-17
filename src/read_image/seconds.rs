@@ -24,3 +24,23 @@ impl From<image::Delay> for Seconds {
 		Self((az::cast::<_, f32>(numer) / az::cast::<_, f32>(denom)) * 0.001)
 	}
 }
+
+impl std::fmt::Display for Seconds {
+	fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let (value, unit) = if self.0 < 0.000_001 {
+			let nanos = self.0 / 0.000_000_001;
+			(nanos, "ns")
+		} else if self.0 < 0.001 {
+			let micros = self.0 / 0.000_001;
+			(micros, "us")
+		} else if self.0 < 1.0 {
+			let millis = self.0 / 0.001;
+			(millis, "ms")
+		} else {
+			let seconds = self.0;
+			(seconds, "s")
+		};
+
+		write!(formatter, "{value:.0} {unit}")
+	}
+}

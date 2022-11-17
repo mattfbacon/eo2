@@ -285,9 +285,8 @@ impl App {
 							}
 							// inline of on_hover_text that lazily evaluates `format!`
 							response.on_hover_ui(|ui| {
-								ui.label(format!("Frame {}", idx + 1));
+								ui.label(format!("Frame {}, {}", idx + 1, textures[idx].1));
 							});
-							// TODO show frame times
 						}
 					},
 				);
