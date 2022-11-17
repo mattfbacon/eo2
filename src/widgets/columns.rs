@@ -14,6 +14,7 @@ pub trait ShowColumnsExt {
 
 impl ShowColumnsExt for ScrollArea {
 	// based on the `show_rows` implementation in egui.
+	// the panicking casts here correspond to similar casts in egui, so no attempt has been made to refactor them to non-panicking variants.
 	fn show_columns(
 		self,
 		ui: &mut Ui,

@@ -115,19 +115,15 @@ impl Background {
 }
 
 impl Config {
-	pub fn load() -> Self {
-		Figment::new()
-			.merge(Toml::file(config_path()))
-			.extract()
-			.expect("loading configuration")
+	pub fn load() -> figment::error::Result<Self> {
+		Figment::new().merge(Toml::file(config_path())).extract()
 	}
 
-	pub fn save(&self) {
+	pub fn save(&self) -> std::io::Result<()> {
 		std::fs::write(
 			config_path(),
 			toml::to_vec(self).expect("serializing configuration"),
 		)
-		.expect("writing configuration");
 	}
 
 	pub fn ui(&mut self, ui: &mut egui::Ui) {
@@ -156,6 +152,6 @@ impl Config {
 	}
 }
 
-pub fn load() -> Config {
+pub fn load() -> figment::error::Result<Config> {
 	Config::load()
 }

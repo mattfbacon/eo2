@@ -34,25 +34,39 @@ use self::widgets::ShowColumnsExt as _;
 
 mod args;
 mod config;
+mod error;
 mod logic;
 mod read_image;
 mod seconds;
 mod widgets;
 
-fn main() {
+fn main() -> Result<(), ()> {
+	match main_() {
+		Ok(()) => Ok(()),
+		Err(error) => {
+			error::show(error.0);
+			Err(())
+		}
+	}
+}
+
+fn main_() -> Result<(), error::Stringed> {
 	let args = args::load();
-	let config = config::load();
+	let config = config::load()?;
 
 	let mut native_options = NativeOptions::default();
 	if let Some(theme) = config.theme {
 		native_options.follow_system_theme = false;
 		native_options.default_theme = theme;
 	}
+
 	eframe::run_native(
 		"Image Viewer",
 		native_options,
 		Box::new(move |cc| Box::new(App::new(args, config, cc))),
 	);
+
+	Ok(())
 }
 
 struct OpenImage {
@@ -127,7 +141,7 @@ impl SlideshowState {
 		};
 	}
 
-	fn advance(&mut self, config: &Config, secs: f32) -> bool {
+	fn advance(&mut self, config: &Config, secs: Seconds) -> bool {
 		match self {
 			Self::Active { remaining } => {
 				let has_elapsed = remaining.advance(secs);
@@ -149,7 +163,6 @@ struct App {
 	config: Config,
 	image_state: ImageState,
 	settings_open: bool,
-	/// None if no slideshow
 	slideshow: SlideshowState,
 }
 
@@ -419,7 +432,9 @@ impl App {
 	fn update_slideshow(&mut self, ctx: &Context) {
 		let elapsed = ctx.input().unstable_dt;
 
-		let next_from_slideshow = self.slideshow.advance(&self.config, elapsed);
+		let next_from_slideshow = self
+			.slideshow
+			.advance(&self.config, Seconds::new_secs_f32_saturating(elapsed));
 
 		if next_from_slideshow {
 			self.move_right(ctx);
@@ -455,7 +470,7 @@ impl App {
 							}
 							if *playing {
 								let elapsed = ctx.input().unstable_dt;
-								current_frame.advance(elapsed, textures);
+								current_frame.advance(Seconds::new_secs_f32_saturating(elapsed), textures);
 								ctx.request_repaint_after(current_frame.remaining.into());
 							}
 						}
@@ -592,6 +607,8 @@ impl eframe::App for App {
 
 	// NB save is not called without the persistence feature, so on_exit is a better option
 	fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-		self.config.save();
+		if let Err(error) = self.config.save() {
+			error::show(error.to_string());
+		}
 	}
 }

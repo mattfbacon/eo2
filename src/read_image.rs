@@ -99,13 +99,15 @@ impl DecoderVisitor for Visitor {
 		decoder.set_limits(limits)?;
 		let image = DynamicImage::from_decoder(decoder)?.into_rgba8();
 		let (width, height) = image.dimensions();
+		// `egui::Color32` and `image::Rgba<u8>` have the same size (4) and align (1) so `cast_vec` will never fail
+		let frames = bytemuck::allocation::cast_vec(image.into_raw());
 		Ok(Image {
 			format,
 			width,
 			height,
 			frames: vec![(
-				bytemuck::allocation::cast_vec(image.into_raw()).into(),
-				Seconds::new_secs(1).unwrap(), // doesn't matter
+				frames.into(),
+				Seconds::new_secs(1).unwrap(), // this value is ignored
 			)],
 		})
 	}
@@ -115,23 +117,37 @@ impl DecoderVisitor for Visitor {
 		decoder: D,
 		format: ImageFormat,
 	) -> Result<Image, ImageError> {
+		let error =
+			|error| ImageError::Decoding(image::error::DecodingError::new(format.into(), error));
+		let partial_frame_error = || error("partial frames are unimplemented");
+
 		let mut size = None;
 		let frames = decoder
 			.into_frames()
 			.map(|frame| {
-				frame.map(|frame| {
-					let this_size = frame.buffer().dimensions();
-					match size {
-						None => size = Some(this_size),
-						Some(old_size) => assert_eq!(old_size, this_size),
+				let frame = frame?;
+
+				let this_size = frame.buffer().dimensions();
+				match size {
+					None => {
+						size = Some(this_size);
 					}
-					assert!(frame.top() == 0 && frame.left() == 0);
-					let delay = frame.delay();
-					(
-						bytemuck::allocation::cast_vec(frame.into_buffer().into_raw()).into(),
-						delay.into(),
-					)
-				})
+					Some(old_size) => {
+						if old_size != this_size {
+							return Err(partial_frame_error());
+						}
+					}
+				}
+
+				if frame.top() != 0 || frame.left() != 0 {
+					return Err(partial_frame_error());
+				}
+
+				let delay = frame.delay();
+				Ok((
+					bytemuck::allocation::cast_vec(frame.into_buffer().into_raw()).into(),
+					delay.try_into().map_err(|_| error("delay out of range"))?,
+				))
 			})
 			.collect::<Result<Vec<_>, _>>()?;
 
@@ -159,7 +175,7 @@ impl Image {
 			ImageError::Unsupported(ImageFormatHint::PathExtension(path.to_owned()).into())
 		})?;
 		let mut reader = reader.into_inner();
-		reader.seek(SeekFrom::Start(0)).unwrap();
+		reader.seek(SeekFrom::Start(0))?;
 		load_decoder(reader, format, Visitor)
 	}
 }

@@ -11,6 +11,8 @@ pub mod image_button;
 pub mod key_value;
 
 fn image_size(actual: Vec2, max: Vec2) -> Vec2 {
+	assert!(!actual.any_nan(), "NaN encountered");
+
 	if actual.x < max.x && actual.y < max.y {
 		actual
 	} else {

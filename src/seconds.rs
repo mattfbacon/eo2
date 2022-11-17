@@ -55,6 +55,10 @@ impl Seconds {
 			.map(Self::new_micros)
 	}
 
+	pub fn new_secs_f32_saturating(secs: f32) -> Self {
+		Self::new_micros(az::saturating_cast::<_, u32>(secs * 1_000_000.0))
+	}
+
 	pub fn as_secs_f32(self) -> f32 {
 		az::cast::<_, f32>(self.micros) / 1_000_000.0
 	}
@@ -85,10 +89,8 @@ impl Seconds {
 
 	/// Subtract `elapsed_secs` from the current value.
 	/// Return whether the duration is elapsed after subtracting (same as `is_over`).
-	pub fn advance(&mut self, elapsed_secs: f32) -> bool {
-		self.micros = self
-			.micros
-			.saturating_sub(Self::new_secs_f32(elapsed_secs).unwrap().micros);
+	pub fn advance(&mut self, elapsed: Seconds) -> bool {
+		self.micros = self.micros.saturating_sub(elapsed.micros);
 		self.is_over()
 	}
 
@@ -104,10 +106,12 @@ impl From<Seconds> for std::time::Duration {
 	}
 }
 
-impl From<image::Delay> for Seconds {
-	fn from(delay: image::Delay) -> Self {
+impl TryFrom<image::Delay> for Seconds {
+	type Error = OutOfRange;
+
+	fn try_from(delay: image::Delay) -> Result<Self, OutOfRange> {
 		let (numer, denom) = delay.numer_denom_ms();
-		Self::new_millis_f32(az::cast::<_, f32>(numer) / az::cast::<_, f32>(denom)).unwrap()
+		Self::new_millis_f32(az::cast::<_, f32>(numer) / az::cast::<_, f32>(denom))
 	}
 }
 

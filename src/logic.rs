@@ -28,7 +28,7 @@ impl CurrentFrame {
 		*self = Self::new_at(idx, remaining.into());
 	}
 
-	pub fn advance(&mut self, elapsed: f32, frames: &[(TextureHandle, Seconds)]) {
+	pub fn advance(&mut self, elapsed: Seconds, frames: &[(TextureHandle, Seconds)]) {
 		// note: this intentionally never advances more than one frame
 		if self.remaining.advance(elapsed) {
 			self.idx = (self.idx + 1) % frames.len();
