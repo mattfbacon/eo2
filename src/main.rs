@@ -446,7 +446,17 @@ impl App {
 	}
 
 	fn show_central(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-		let panel = egui::CentralPanel::default().frame(Frame::none());
+		let panel = {
+			let margin = if let Some(Ok(..)) = self.image_state.current() {
+				0.0
+			} else {
+				8.0
+			};
+			let frame = Frame::none()
+				.fill(ctx.style().visuals.window_fill())
+				.inner_margin(margin);
+			egui::CentralPanel::default().frame(frame)
+		};
 
 		panel.show(ctx, |ui| match self.image_state.current_mut() {
 			Some(Ok(image)) => {
