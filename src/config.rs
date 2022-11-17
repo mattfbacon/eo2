@@ -6,6 +6,7 @@ use figment::providers::{Format as _, Toml};
 use figment::Figment;
 use serde::{Deserialize, Serialize};
 
+use crate::seconds::Seconds;
 use crate::widgets;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -17,6 +18,8 @@ pub struct Config {
 	pub show_frames: bool,
 	#[serde(default)]
 	pub background: Background,
+	#[serde(default)]
+	pub slideshow: Slideshow,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Default)]
@@ -46,6 +49,44 @@ impl BackgroundColor {
 	}
 
 	const VARIANTS: &[Self] = &[Self::Default, Self::Dark, Self::Light];
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+pub struct Slideshow {
+	#[serde(default = "default_interval")]
+	pub interval: Seconds,
+}
+
+impl Default for Slideshow {
+	fn default() -> Self {
+		Self {
+			interval: default_interval(),
+		}
+	}
+}
+
+fn default_interval() -> Seconds {
+	Seconds::new_secs(5).unwrap()
+}
+
+impl Slideshow {
+	fn ui(&mut self, ui: &mut egui::Ui) {
+		widgets::KeyValue::new("config-slideshow-kv").show(ui, |mut rows| {
+			rows.row("Interval", |ui| {
+				let mut secs = self.interval.as_secs_f32();
+				let widget = egui::DragValue::new(&mut secs)
+					.speed(0.01)
+					.suffix(" s")
+					.clamp_range(0.001..=Seconds::MAX.as_secs_f32());
+				let response = ui.add(widget);
+				if response.changed() {
+					if let Ok(new) = Seconds::new_secs_f32(secs) {
+						self.interval = new;
+					}
+				}
+			});
+		});
+	}
 }
 
 fn config_path() -> PathBuf {
@@ -96,6 +137,9 @@ impl Config {
 			});
 			rows.row("Color Scheme", |ui| {
 				self.light_dark_toggle_button(ui);
+			});
+			rows.row("Slideshow", |ui| {
+				self.slideshow.ui(ui);
 			});
 		});
 	}

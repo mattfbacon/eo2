@@ -3,7 +3,8 @@ use std::path::Path;
 use egui::{Color32, Context, TextureFilter, TextureHandle};
 use image::{ImageFormat, ImageResult};
 
-use crate::read_image::{self, Seconds};
+use crate::read_image;
+use crate::seconds::Seconds;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CurrentFrame {

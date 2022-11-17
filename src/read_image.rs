@@ -6,9 +6,7 @@ use image::error::{DecodingError, ImageError, ImageFormatHint};
 use image::io::Limits;
 use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
 
-pub use self::seconds::Seconds;
-
-pub mod seconds;
+use crate::seconds::Seconds;
 
 pub type Frame = Box<[Color32]>;
 
@@ -107,7 +105,7 @@ impl DecoderVisitor for Visitor {
 			height,
 			frames: vec![(
 				bytemuck::allocation::cast_vec(image.into_raw()).into(),
-				Seconds::new_secs(1), // doesn't matter
+				Seconds::new_secs(1).unwrap(), // doesn't matter
 			)],
 		})
 	}

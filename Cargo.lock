@@ -1069,6 +1069,7 @@ dependencies = [
  "figment",
  "image",
  "serde",
+ "thiserror",
  "toml",
 ]
 

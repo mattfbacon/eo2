@@ -29,12 +29,14 @@ use image::ImageFormat;
 
 use self::args::Args;
 use self::config::Config;
+use self::seconds::Seconds;
 use self::widgets::ShowColumnsExt as _;
 
 mod args;
 mod config;
 mod logic;
 mod read_image;
+mod seconds;
 mod widgets;
 
 fn main() {
@@ -102,10 +104,53 @@ impl ImageState {
 	}
 }
 
+#[derive(Default, Clone, Copy, Debug)]
+enum SlideshowState {
+	Active {
+		remaining: Seconds,
+	},
+	#[default]
+	Inactive,
+}
+
+impl SlideshowState {
+	fn is_active(self) -> bool {
+		match self {
+			Self::Active { .. } => true,
+			Self::Inactive => false,
+		}
+	}
+
+	fn start(&mut self, config: &Config) {
+		*self = Self::Active {
+			remaining: config.slideshow.interval,
+		};
+	}
+
+	fn advance(&mut self, config: &Config, secs: f32) -> bool {
+		match self {
+			Self::Active { remaining } => {
+				let has_elapsed = remaining.advance(secs);
+				if has_elapsed {
+					self.start(config);
+				}
+				has_elapsed
+			}
+			Self::Inactive => false,
+		}
+	}
+
+	fn stop(&mut self) {
+		*self = Self::Inactive;
+	}
+}
+
 struct App {
 	config: Config,
 	image_state: ImageState,
 	settings_open: bool,
+	/// None if no slideshow
+	slideshow: SlideshowState,
 }
 
 impl App {
@@ -115,6 +160,7 @@ impl App {
 			config,
 			image_state: ImageState::default(),
 			settings_open: false,
+			slideshow: SlideshowState::default(),
 		};
 		ret.image_state.open(&cc.egui_ctx, args.path);
 		ret
@@ -260,6 +306,20 @@ impl App {
 			ui.toggle_value(&mut this.settings_open, "⛭")
 				.on_hover_text("Toggle settings window");
 
+			{
+				let mut slideshow_active = this.slideshow.is_active();
+				let icon = if slideshow_active { "⏸" } else { "▶" };
+				let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
+
+				if changed {
+					if slideshow_active {
+						this.slideshow.start(&this.config);
+					} else {
+						this.slideshow.stop();
+					}
+				}
+			}
+
 			this.config.light_dark_toggle_button(ui);
 		};
 
@@ -356,8 +416,23 @@ impl App {
 			});
 	}
 
+	fn update_slideshow(&mut self, ctx: &Context) {
+		let elapsed = ctx.input().unstable_dt;
+
+		let next_from_slideshow = self.slideshow.advance(&self.config, elapsed);
+
+		if next_from_slideshow {
+			self.move_right(ctx);
+		}
+
+		if let SlideshowState::Active { remaining } = self.slideshow {
+			ctx.request_repaint_after(remaining.into());
+		}
+	}
+
 	fn show_central(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		let panel = egui::CentralPanel::default().frame(Frame::none());
+
 		panel.show(ctx, |ui| match self.image_state.current_mut() {
 			Some(Ok(image)) => {
 				ui.centered_and_justified(|ui| {
@@ -379,7 +454,7 @@ impl App {
 								*playing = !*playing;
 							}
 							if *playing {
-								let elapsed = ui.input().unstable_dt;
+								let elapsed = ctx.input().unstable_dt;
 								current_frame.advance(elapsed, textures);
 								ctx.request_repaint_after(current_frame.remaining.into());
 							}
@@ -505,6 +580,8 @@ impl eframe::App for App {
 		if !ctx.wants_keyboard_input() {
 			self.handle_global_keys(ctx, frame);
 		}
+
+		self.update_slideshow(ctx);
 
 		self.show_settings(ctx, frame);
 		self.show_actions(ctx, frame);
