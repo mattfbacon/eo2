@@ -3,8 +3,10 @@ use std::path::Path;
 use egui::{Color32, Context, TextureFilter, TextureHandle};
 use image::{ImageFormat, ImageResult};
 
-use crate::read_image;
 use crate::seconds::Seconds;
+
+mod read;
+pub mod state;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CurrentFrame {
@@ -37,7 +39,7 @@ impl CurrentFrame {
 	}
 }
 
-pub enum ImageInner {
+pub enum Inner {
 	Animated {
 		textures: Vec<(TextureHandle, Seconds)>,
 		current_frame: CurrentFrame,
@@ -46,7 +48,7 @@ pub enum ImageInner {
 	Single(TextureHandle),
 }
 
-impl ImageInner {
+impl Inner {
 	pub fn kind(&self) -> &'static str {
 		match self {
 			Self::Animated { .. } => "Animated",
@@ -63,7 +65,7 @@ pub struct Image {
 	pub format: ImageFormat,
 	pub width: u32,
 	pub height: u32,
-	pub inner: ImageInner,
+	pub inner: Inner,
 }
 
 impl Image {
@@ -89,15 +91,15 @@ impl Image {
 			)
 		}
 
-		let read_image::Image {
+		let read::Image {
 			format,
 			width,
 			height,
 			frames,
-		} = read_image::Image::read(path)?;
+		} = read::Image::read(path)?;
 		let inner = match frames.len() {
 			0 => unreachable!(),
-			1 => ImageInner::Single(load_texture(
+			1 => Inner::Single(load_texture(
 				ctx,
 				width,
 				height,
@@ -114,7 +116,7 @@ impl Image {
 						(texture, delay)
 					})
 					.collect();
-				ImageInner::Animated {
+				Inner::Animated {
 					textures,
 					current_frame: CurrentFrame::new(current_delay),
 					playing: true,
