@@ -65,14 +65,30 @@ pub struct App {
 
 impl App {
 	#[allow(clippy::needless_pass_by_value)] // consistency
-	pub fn new(args: Args, config: Config, cc: &CreationContext<'_>) -> Self {
+	pub fn new(Args { paths }: Args, config: Config, cc: &CreationContext<'_>) -> Self {
+		let (first_path, navigation_mode) = if paths.len() >= 2 {
+			(
+				Some(paths[0].clone()),
+				image::state::NavigationMode::Specified { paths, current: 0 },
+			)
+		} else {
+			(
+				paths.into_iter().next(),
+				image::state::NavigationMode::InDirectory,
+			)
+		};
+
 		let mut ret = Self {
 			config,
-			image_state: ImageState::new(cc.egui_ctx.clone()),
+			image_state: ImageState::new(cc.egui_ctx.clone(), navigation_mode),
 			settings_open: false,
 			slideshow: SlideshowState::default(),
 		};
-		ret.image_state.open(args.path);
+
+		if let Some(first_path) = first_path {
+			ret.image_state.open(first_path);
+		}
+
 		ret
 	}
 }
@@ -420,7 +436,12 @@ impl App {
 	}
 
 	fn move_in(&mut self, direction: NextPathDirection) {
-		self.image_state.next_path(direction);
+		use std::task::Poll;
+
+		match self.image_state.next_path(direction) {
+			Poll::Ready(path) => self.image_state.open(path),
+			Poll::Pending => { /* will be handled by handle_actor_responses */ }
+		}
 	}
 
 	fn move_right(&mut self) {
