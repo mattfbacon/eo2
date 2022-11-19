@@ -74,9 +74,11 @@ impl App {
 			(paths.into_iter().next(), NavigationMode::InDirectory)
 		};
 
+		let cache_size = config.cache_size;
+
 		let mut ret = Self {
 			config,
-			image_state: ImageState::new(cc.egui_ctx.clone(), navigation_mode),
+			image_state: ImageState::new(cc.egui_ctx.clone(), cache_size, navigation_mode),
 			settings_open: false,
 			slideshow: SlideshowState::default(),
 		};

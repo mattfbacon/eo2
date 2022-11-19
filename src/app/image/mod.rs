@@ -55,4 +55,16 @@ impl Image {
 		})?;
 		Ok(image)
 	}
+
+	pub fn size_in_memory(&self) -> usize {
+		self
+			.frames
+			.iter()
+			.map(|(frame, _delay)| {
+				let [width, height] = frame.size();
+				let pixel_size = std::mem::size_of::<egui::Color32>();
+				width.saturating_mul(height).saturating_mul(pixel_size)
+			})
+			.sum()
+	}
 }

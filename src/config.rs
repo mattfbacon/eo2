@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use eframe::Theme;
@@ -16,10 +17,16 @@ pub struct Config {
 	pub show_sidebar: bool,
 	#[serde(default)]
 	pub show_frames: bool,
+	#[serde(default = "default_cache_size")]
+	pub cache_size: NonZeroUsize,
 	#[serde(default)]
 	pub background: Background,
 	#[serde(default)]
 	pub slideshow: Slideshow,
+}
+
+fn default_cache_size() -> NonZeroUsize {
+	NonZeroUsize::new(1024 * 1024 * 1024).unwrap()
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Default)]

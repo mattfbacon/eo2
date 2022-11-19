@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::task::Poll;
 
-use ::image::error::{ImageError, ImageResult};
+use clru::{CLruCache, CLruCacheConfig};
 use egui::Context;
+use image::error::{ImageError, ImageResult};
+use xxhash_rust::xxh3::Xxh3Builder;
 
 use super::image::Image;
 use crate::app::actor::{Actor, Response};
@@ -27,17 +29,29 @@ impl NavigationMode {
 	}
 }
 
+struct ImageSizeWeight;
+
+impl clru::WeightScale<PathBuf, Image> for ImageSizeWeight {
+	fn weight(&self, _path: &PathBuf, image: &Image) -> usize {
+		image.size_in_memory()
+	}
+}
+
 pub struct State {
-	cache: HashMap<PathBuf, Image>,
+	cache: CLruCache<PathBuf, Image, Xxh3Builder, ImageSizeWeight>,
 	current: Option<OpenImage>,
 	navigation_mode: NavigationMode,
 	actor: Actor,
 }
 
 impl State {
-	pub fn new(egui_ctx: Context, navigation_mode: NavigationMode) -> Self {
+	pub fn new(egui_ctx: Context, cache_size: NonZeroUsize, navigation_mode: NavigationMode) -> Self {
 		Self {
-			cache: HashMap::new(),
+			cache: CLruCache::with_config(
+				CLruCacheConfig::new(cache_size)
+					.with_hasher(Xxh3Builder::new())
+					.with_scale(ImageSizeWeight),
+			),
 			current: None,
 			navigation_mode,
 			actor: Actor::spawn(egui_ctx),
@@ -52,8 +66,8 @@ impl State {
 		self.current.as_ref().map(|open| &*open.path)
 	}
 
-	pub fn current(&self) -> Option<Result<(&play::State, &Image), &ImageError>> {
-		self.current.as_ref().map(|open| {
+	pub fn current(&mut self) -> Option<Result<(&play::State, &Image), &ImageError>> {
+		self.current.as_mut().map(|open| {
 			open
 				.status
 				.as_ref()
@@ -61,12 +75,12 @@ impl State {
 		})
 	}
 
-	pub fn current_mut(&mut self) -> Option<Result<(&mut play::State, &mut Image), &ImageError>> {
+	pub fn current_mut(&mut self) -> Option<Result<(&mut play::State, &Image), &ImageError>> {
 		self.current.as_mut().map(|open| {
 			open
 				.status
 				.as_mut()
-				.map(|state| (state, self.cache.get_mut(&open.path).unwrap()))
+				.map(|state| (state, self.cache.get(&open.path).unwrap()))
 				.map_err(|error_mut| &*error_mut) // un-mutable-ify
 		})
 	}
@@ -103,10 +117,16 @@ impl State {
 		while let Some(response) = self.actor.poll_response() {
 			match response {
 				Response::LoadImage(path, loaded) => {
-					let status = loaded.map(|image| {
+					let status = loaded.and_then(|image| {
 						let play_state = image.make_play_state();
-						self.cache.insert(path.clone(), image);
-						play_state
+						self
+							.cache
+							.put_with_weight(path.clone(), image)
+							.map_err(|_| {
+								use image::error::{LimitError, LimitErrorKind};
+								ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
+							})?;
+						Ok(play_state)
 					});
 					self.current = Some(OpenImage { status, path });
 				}
