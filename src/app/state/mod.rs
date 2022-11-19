@@ -25,6 +25,7 @@ pub struct OpenImage {
 	pub path: PathBuf,
 }
 
+#[derive(Debug)]
 pub enum NavigationMode {
 	InDirectory,
 	Specified { paths: Vec<PathBuf>, current: usize },
@@ -130,5 +131,97 @@ impl State {
 				},
 			}
 		}
+	}
+
+	pub fn internal_ui(&mut self, ui: &mut egui::Ui) {
+		use crate::widgets::KeyValue;
+
+		KeyValue::new("image-state-internal-kv").show(ui, |mut rows| {
+			rows.sub("image-state-internal-cache-kv", "Cache", |mut rows| {
+				rows.row("Size", |ui| {
+					ui.label(humansize::format_size(
+						self.cache.weight(),
+						humansize::DECIMAL,
+					));
+				});
+				rows.row("Limit", |ui| {
+					ui.label(humansize::format_size(
+						self.cache.capacity(),
+						humansize::DECIMAL,
+					));
+				});
+				rows.row("Entries", |ui| {
+					ui.vertical(|ui| {
+						ui.label(self.cache.len().to_string());
+						ui.collapsing("The entries (LRU order)", |ui| {
+							egui::ScrollArea::vertical().show_rows(
+								ui,
+								egui::style::TextStyle::Body.resolve(ui.style()).size,
+								self.cache.len(),
+								|ui, range| {
+									let std::ops::Range { start, end } = range;
+									for (idx, (path, entry)) in
+										range.zip(self.cache.iter().skip(start).take(end - start))
+									{
+										ui.label(format!(
+											"{}. {:?}, {}x{}, {}, {} frames",
+											idx + 1,
+											path,
+											entry.width,
+											entry.height,
+											humansize::format_size(entry.size_in_memory(), humansize::DECIMAL),
+											entry.frames.len()
+										));
+									}
+								},
+							);
+						});
+					});
+				});
+				rows.row("Empty", |ui| {
+					if ui.button("Empty").clicked() {
+						self.cache.clear();
+					}
+				});
+			});
+			rows.row("Nav Mode", |ui| {
+				ui.vertical(|ui| match &self.navigation_mode {
+					NavigationMode::InDirectory => match self.current_path() {
+						Some(path) => {
+							ui.label(format!("All images in {path:?}"));
+						}
+						None => {
+							ui.label("N/A, no images");
+						}
+					},
+					NavigationMode::Specified { paths, current } => {
+						ui.label(format!(
+							"{} out of {} specified paths",
+							current + 1,
+							paths.len()
+						));
+						ui.collapsing("The paths", |ui| {
+							egui::ScrollArea::vertical().show_rows(
+								ui,
+								egui::style::TextStyle::Body.resolve(ui.style()).size,
+								paths.len(),
+								|ui, range| {
+									for idx in range {
+										ui.label(format!("{}. {:?}", idx + 1, paths[idx]));
+									}
+								},
+							);
+						});
+					}
+				});
+			});
+			rows.row("Actor", |ui| {
+				ui.label(if self.actor.waiting() {
+					"Waiting"
+				} else {
+					"Ready"
+				});
+			});
+		});
 	}
 }

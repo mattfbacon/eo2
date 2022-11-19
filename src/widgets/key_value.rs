@@ -41,10 +41,19 @@ impl Rows<'_> {
 
 		ui.end_row();
 	}
+
+	pub fn sub<R>(
+		&mut self,
+		id: &str,
+		key: impl Into<WidgetText>,
+		sub: impl FnOnce(Rows<'_>) -> R,
+	) -> InnerResponse<InnerResponse<R>> {
+		self.row(key, |ui| KeyValue::new(id).show(ui, sub))
+	}
 }
 
 impl KeyValue {
-	pub fn new(id: &'static str) -> Self {
+	pub fn new(id: &str) -> Self {
 		Self(Grid::new(id).num_columns(2))
 	}
 

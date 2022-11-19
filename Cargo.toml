@@ -8,7 +8,7 @@ version = "0.1.0"
 argh = "0.1"
 az = "1"
 bytemuck = "1"
-clru = "0.6"
+clru = { version = "0.6", git = "https://github.com/mattfbacon/clru-rs" }
 directories-next = "2"
 eframe = { version = "0.19", features = ["serde"] }
 egui = "0.19"

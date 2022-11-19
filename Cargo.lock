@@ -502,8 +502,7 @@ dependencies = [
 [[package]]
 name = "clru"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff2bf4436a5e3c7e32392df4147f524cfce8bc82e9fb573f99e8b11ce53b159a"
+source = "git+https://github.com/mattfbacon/clru-rs#f8d7b8cb0fd66319eaaa235a1124fb3fd0d61a59"
 
 [[package]]
 name = "cmake"

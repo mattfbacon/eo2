@@ -62,6 +62,7 @@ pub struct App {
 	config: Config,
 	image_state: ImageState,
 	settings_open: bool,
+	internal_open: bool,
 	slideshow: SlideshowState,
 }
 
@@ -80,6 +81,7 @@ impl App {
 			config,
 			image_state: ImageState::new(cc.egui_ctx.clone(), cache_size, navigation_mode),
 			settings_open: false,
+			internal_open: false,
 			slideshow: SlideshowState::default(),
 		};
 
@@ -448,6 +450,17 @@ impl App {
 		});
 	}
 
+	fn show_internal(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+		let window = egui::Window::new("Internal State")
+			.open(&mut self.internal_open)
+			.resizable(false)
+			.collapsible(true)
+			.default_width(600.0);
+		window.show(ctx, |ui| {
+			self.image_state.internal_ui(ui);
+		});
+	}
+
 	fn handle_global_keys(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		use egui::Key;
 
@@ -455,8 +468,15 @@ impl App {
 
 		if key(Key::ArrowRight) {
 			self.move_right();
-		} else if key(Key::ArrowLeft) {
+		}
+		if key(Key::ArrowLeft) {
 			self.move_left();
+		}
+		if ctx
+			.input_mut()
+			.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, Key::I)
+		{
+			self.internal_open = !self.internal_open;
 		}
 	}
 
@@ -492,6 +512,7 @@ impl eframe::App for App {
 		self.handle_actor_responses();
 
 		self.show_settings(ctx, frame);
+		self.show_internal(ctx, frame);
 		self.show_actions(ctx, frame);
 		self.show_sidebar(ctx, frame);
 		self.show_frames(ctx, frame);
