@@ -213,15 +213,19 @@ impl App {
 
 			if this
 				.image_state
-				.current()
-				.map_or(false, |current| current.is_ok())
+				.current
+				.as_ref()
+				.map_or(false, |current| current.inner.is_ok())
 			{
 				ui.toggle_value(&mut this.config.show_sidebar, "ℹ")
 					.on_hover_text("Toggle sidebar");
 			}
 
-			if this.image_state.current().map_or(false, |current| {
-				current.map_or(false, |(_state, image)| image.is_animated())
+			if this.image_state.current.as_ref().map_or(false, |current| {
+				current
+					.inner
+					.as_ref()
+					.map_or(false, |inner| inner.image.is_animated())
 			}) {
 				ui.toggle_value(&mut this.config.show_frames, "🎞")
 					.on_hover_text("Toggle frames");
@@ -266,7 +270,7 @@ impl App {
 			return;
 		}
 
-		let Some(Ok((_state, image))) = self.image_state.current() else { return };
+		let Some(state::OpenImage { inner: Ok(state::OpenImageInner { image, .. }), ..}) = &self.image_state.current else { return };
 
 		egui::SidePanel::right("properties").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
@@ -287,15 +291,17 @@ impl App {
 			return;
 		}
 
-		let Some(Ok(
-			(
-				PlayState::Animated {
+		let Some(state::OpenImage { inner: Ok(
+				state::OpenImageInner {
+				play_state: PlayState::Animated {
 					current_frame,
 					playing,
 				},
-				image::Image { frames, .. }
+				image,
+				}
 			)
-				)) = self.image_state.current_mut() else { return; };
+				, ..}) = &mut self.image_state.current else { return; };
+		let frames = &image.frames;
 
 		let outer_frame_size = Vec2::splat(100.0); // XXX 100 is arbitrary; make it configurable?
 
@@ -361,7 +367,7 @@ impl App {
 
 	fn show_central(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		let panel = {
-			let margin = if let Some(Ok(..)) = self.image_state.current() {
+			let margin = if let Some(state::OpenImage { inner: Ok(..), .. }) = &self.image_state.current {
 				0.0
 			} else {
 				8.0
@@ -372,11 +378,14 @@ impl App {
 			egui::CentralPanel::default().frame(frame)
 		};
 
-		panel.show(ctx, |ui| match self.image_state.current_mut() {
-			Some(Ok((state, image))) => {
+		panel.show(ctx, |ui| match &mut self.image_state.current {
+			Some(state::OpenImage {
+				inner: Ok(state::OpenImageInner { play_state, image }),
+				..
+			}) => {
 				ui.centered_and_justified(|ui| {
 					self.config.background.draw(ui.painter(), ui.max_rect());
-					match state {
+					match play_state {
 						PlayState::Single => {
 							ui.add(widgets::Image::for_texture(&image.frames[0].0));
 						}
@@ -404,7 +413,9 @@ impl App {
 					}
 				});
 			}
-			Some(Err(error)) => {
+			Some(state::OpenImage {
+				inner: Err(error), ..
+			}) => {
 				ui.heading(format!("error: {error}"));
 			}
 			None => {

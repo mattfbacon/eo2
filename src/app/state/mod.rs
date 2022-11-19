@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::task::Poll;
 
 use clru::{CLruCache, CLruCacheConfig};
@@ -13,9 +14,14 @@ use crate::app::next_path::Direction as NextPathDirection;
 
 pub mod play;
 
-struct OpenImage {
-	status: ImageResult<play::State>,
-	path: PathBuf,
+pub struct OpenImageInner {
+	pub play_state: play::State,
+	pub image: Rc<Image>,
+}
+
+pub struct OpenImage {
+	pub inner: ImageResult<OpenImageInner>,
+	pub path: PathBuf,
 }
 
 pub enum NavigationMode {
@@ -31,15 +37,15 @@ impl NavigationMode {
 
 struct ImageSizeWeight;
 
-impl clru::WeightScale<PathBuf, Image> for ImageSizeWeight {
-	fn weight(&self, _path: &PathBuf, image: &Image) -> usize {
+impl clru::WeightScale<PathBuf, Rc<Image>> for ImageSizeWeight {
+	fn weight(&self, _path: &PathBuf, image: &Rc<Image>) -> usize {
 		image.size_in_memory()
 	}
 }
 
 pub struct State {
-	cache: CLruCache<PathBuf, Image, Xxh3Builder, ImageSizeWeight>,
-	current: Option<OpenImage>,
+	cache: CLruCache<PathBuf, Rc<Image>, Xxh3Builder, ImageSizeWeight>,
+	pub current: Option<OpenImage>,
 	navigation_mode: NavigationMode,
 	actor: Actor,
 }
@@ -66,30 +72,14 @@ impl State {
 		self.current.as_ref().map(|open| &*open.path)
 	}
 
-	pub fn current(&mut self) -> Option<Result<(&play::State, &Image), &ImageError>> {
-		self.current.as_mut().map(|open| {
-			open
-				.status
-				.as_ref()
-				.map(|state| (state, self.cache.get(&open.path).unwrap()))
-		})
-	}
-
-	pub fn current_mut(&mut self) -> Option<Result<(&mut play::State, &Image), &ImageError>> {
-		self.current.as_mut().map(|open| {
-			open
-				.status
-				.as_mut()
-				.map(|state| (state, self.cache.get(&open.path).unwrap()))
-				.map_err(|error_mut| &*error_mut) // un-mutable-ify
-		})
-	}
-
 	pub fn open(&mut self, path: PathBuf) {
 		if let Some(cached) = self.cache.get(&path) {
+			let image = Rc::clone(cached);
+			let play_state = image.make_play_state();
+			let inner = OpenImageInner { play_state, image };
 			self.current = Some(OpenImage {
 				path,
-				status: Ok(cached.make_play_state()),
+				inner: Ok(inner),
 			});
 		} else {
 			self.actor.load_image(path);
@@ -117,18 +107,19 @@ impl State {
 		while let Some(response) = self.actor.poll_response() {
 			match response {
 				Response::LoadImage(path, loaded) => {
-					let status = loaded.and_then(|image| {
+					let inner = loaded.and_then(|image| {
 						let play_state = image.make_play_state();
+						let image = Rc::new(image);
 						self
 							.cache
-							.put_with_weight(path.clone(), image)
+							.put_with_weight(path.clone(), Rc::clone(&image))
 							.map_err(|_| {
 								use image::error::{LimitError, LimitErrorKind};
 								ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
 							})?;
-						Ok(play_state)
+						Ok(OpenImageInner { play_state, image })
 					});
-					self.current = Some(OpenImage { status, path });
+					self.current = Some(OpenImage { inner, path });
 				}
 				Response::NextPath(next) => match next {
 					Ok(Some(next)) => self.open(next),
