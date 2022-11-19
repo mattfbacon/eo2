@@ -8,10 +8,11 @@ use egui::Context;
 use image::error::{ImageError, ImageResult};
 use xxhash_rust::xxh3::Xxh3Builder;
 
+use self::actor::{Actor, Response};
 use super::image::Image;
-use crate::app::actor::{Actor, Response};
 use crate::app::next_path::Direction as NextPathDirection;
 
+pub mod actor;
 pub mod play;
 
 pub struct OpenImageInner {

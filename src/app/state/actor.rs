@@ -7,8 +7,8 @@ use std::{io, thread};
 
 use ::image::error::ImageResult;
 
-use super::image;
-use super::next_path::{next_path, Direction as NextPathDirection};
+use crate::app::image;
+use crate::app::next_path::{next_path, Direction as NextPathDirection};
 
 enum Command {
 	LoadImage(PathBuf),

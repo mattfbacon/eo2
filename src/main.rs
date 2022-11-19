@@ -36,6 +36,8 @@ fn main() -> Result<(), ()> {
 }
 
 fn main_() -> Result<(), error::Stringed> {
+	app::init_timezone();
+
 	let args = args::load();
 	let config = config::load()?;
 

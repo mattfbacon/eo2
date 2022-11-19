@@ -3,6 +3,7 @@ use eframe::CreationContext;
 use egui::style::Margin;
 use egui::{Color32, Context, Frame, Painter, Rect, Rounding, Vec2};
 
+pub use self::image::init_timezone;
 use self::next_path::Direction as NextPathDirection;
 use self::state::play::State as PlayState;
 use self::state::{NavigationMode, State as ImageState};
@@ -12,7 +13,6 @@ use crate::seconds::Seconds;
 use crate::widgets::ShowColumnsExt as _;
 use crate::{config, error, widgets};
 
-mod actor;
 mod image;
 mod next_path;
 mod state;
@@ -270,7 +270,7 @@ impl App {
 			return;
 		}
 
-		let Some(state::OpenImage { inner: Ok(state::OpenImageInner { image, .. }), ..}) = &self.image_state.current else { return };
+		let Some(state::OpenImage { inner: Ok(state::OpenImageInner { image, .. }), .. }) = &self.image_state.current else { return };
 
 		egui::SidePanel::right("properties").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
@@ -282,6 +282,17 @@ impl App {
 				rows.row("Height", |ui| ui.label(image.height.to_string()));
 				rows.row("Format", |ui| ui.label(format_to_string(image.format)));
 				rows.row("Kind", |ui| ui.label(image.kind().repr()));
+
+				rows.separator();
+				rows.row("File Size", |ui| {
+					ui.label(humansize::format_size(
+						image.metadata.file_size,
+						humansize::DECIMAL,
+					))
+				});
+				if let Some(mtime) = &image.metadata.mtime {
+					rows.row("Modified", |ui| ui.label(mtime));
+				}
 			});
 		});
 	}
@@ -298,6 +309,7 @@ impl App {
 					playing,
 				},
 				image,
+				..
 				}
 			)
 				, ..}) = &mut self.image_state.current else { return; };
@@ -380,7 +392,9 @@ impl App {
 
 		panel.show(ctx, |ui| match &mut self.image_state.current {
 			Some(state::OpenImage {
-				inner: Ok(state::OpenImageInner { play_state, image }),
+				inner: Ok(state::OpenImageInner {
+					play_state, image, ..
+				}),
 				..
 			}) => {
 				ui.centered_and_justified(|ui| {

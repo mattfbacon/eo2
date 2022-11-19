@@ -2,16 +2,48 @@ use std::path::Path;
 
 use egui::{Context, TextureFilter, TextureHandle};
 use image::{ImageFormat, ImageResult};
+use once_cell::sync::Lazy;
 
 use crate::seconds::Seconds;
 
 mod read;
+
+static TIMEZONE: Lazy<time::UtcOffset> =
+	Lazy::new(|| time::UtcOffset::current_local_offset().unwrap());
+
+pub fn init_timezone() {
+	Lazy::force(&TIMEZONE);
+}
+
+#[derive(Debug)]
+pub struct Metadata {
+	pub file_size: u64,
+	pub mtime: Option<String>,
+}
+
+impl Metadata {
+	fn from_path(path: &Path) -> std::io::Result<Self> {
+		let metadata = std::fs::metadata(path)?;
+		Ok(Self {
+			file_size: metadata.len(),
+			mtime: metadata.modified().ok().map(|sys| {
+				time::OffsetDateTime::from(sys)
+					.to_offset(*TIMEZONE)
+					.format(time::macros::format_description!(
+						"[year]-[month]-[day] [hour]:[minute]:[second]"
+					))
+					.unwrap()
+			}),
+		})
+	}
+}
 
 pub struct Image<FrameType = TextureHandle> {
 	pub format: ImageFormat,
 	pub width: u32,
 	pub height: u32,
 	pub frames: Vec<(FrameType, Seconds)>,
+	pub metadata: Metadata,
 }
 
 #[derive(Debug, Clone, Copy)]

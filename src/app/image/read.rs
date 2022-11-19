@@ -6,7 +6,7 @@ use image::error::{DecodingError, ImageError, ImageFormatHint};
 use image::io::Limits;
 use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
 
-use super::Image;
+use super::{Image, Metadata};
 use crate::seconds::Seconds;
 
 type Frame = Box<[Color32]>;
@@ -77,6 +77,7 @@ fn load_decoder<V: DecoderVisitor>(
 
 struct Visitor<F> {
 	frame_mapper: F,
+	metadata: Metadata,
 }
 
 impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for Visitor<F> {
@@ -105,6 +106,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 				(self.frame_mapper)(width, height, frame.into()),
 				Seconds::new_secs(1).unwrap(), // this value is ignored
 			)],
+			metadata: self.metadata,
 		})
 	}
 
@@ -161,6 +163,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 			width,
 			height,
 			frames,
+			metadata: self.metadata,
 		})
 	}
 }
@@ -169,6 +172,7 @@ pub fn read<OutFrameType>(
 	path: &Path,
 	load_frame: impl FnMut(u32, u32, Frame) -> OutFrameType,
 ) -> Result<Image<OutFrameType>, ImageError> {
+	let metadata = Metadata::from_path(path)?;
 	let reader = image::io::Reader::open(path)?;
 	let reader = reader.with_guessed_format()?;
 	let format = reader.format().ok_or_else(|| {
@@ -181,6 +185,7 @@ pub fn read<OutFrameType>(
 		format,
 		Visitor {
 			frame_mapper: load_frame,
+			metadata,
 		},
 	)
 }
