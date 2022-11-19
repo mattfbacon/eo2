@@ -1,134 +1,58 @@
 use std::path::Path;
 
-use egui::{Color32, Context, TextureFilter, TextureHandle};
+use egui::{Context, TextureFilter, TextureHandle};
 use image::{ImageFormat, ImageResult};
 
 use crate::seconds::Seconds;
 
 mod read;
-pub mod state;
 
-#[derive(Debug, Clone, Copy)]
-pub struct CurrentFrame {
-	pub idx: usize,
-	pub remaining: Seconds,
-}
-
-impl CurrentFrame {
-	pub fn new(remaining: impl Into<Seconds>) -> Self {
-		Self::new_at(0, remaining.into())
-	}
-
-	pub fn new_at(idx: usize, remaining: impl Into<Seconds>) -> Self {
-		Self {
-			idx,
-			remaining: remaining.into(),
-		}
-	}
-
-	pub fn move_to(&mut self, idx: usize, remaining: impl Into<Seconds>) {
-		*self = Self::new_at(idx, remaining.into());
-	}
-
-	pub fn advance(&mut self, elapsed: Seconds, frames: &[(TextureHandle, Seconds)]) {
-		// note: this intentionally never advances more than one frame
-		if self.remaining.advance(elapsed) {
-			self.idx = (self.idx + 1) % frames.len();
-			self.remaining = frames[self.idx].1;
-		}
-	}
-}
-
-pub enum Inner {
-	Animated {
-		textures: Vec<(TextureHandle, Seconds)>,
-		current_frame: CurrentFrame,
-		playing: bool,
-	},
-	Single(TextureHandle),
-}
-
-impl Inner {
-	pub fn kind(&self) -> &'static str {
-		match self {
-			Self::Animated { .. } => "Animated",
-			Self::Single(..) => "Static",
-		}
-	}
-
-	pub fn is_animated(&self) -> bool {
-		matches!(self, Self::Animated { .. })
-	}
-}
-
-pub struct Image {
+pub struct Image<FrameType = TextureHandle> {
 	pub format: ImageFormat,
 	pub width: u32,
 	pub height: u32,
-	pub inner: Inner,
+	pub frames: Vec<(FrameType, Seconds)>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Kind {
+	Animated,
+	Static,
+}
+
+impl Kind {
+	pub fn repr(self) -> &'static str {
+		match self {
+			Self::Animated => "Animated",
+			Self::Static => "Static",
+		}
+	}
 }
 
 impl Image {
 	pub fn is_animated(&self) -> bool {
-		self.inner.is_animated()
+		self.frames.len() > 1
+	}
+
+	pub fn kind(&self) -> Kind {
+		if self.is_animated() {
+			Kind::Animated
+		} else {
+			Kind::Static
+		}
 	}
 
 	pub fn load(ctx: &Context, path: &Path) -> ImageResult<Self> {
-		fn load_texture(
-			ctx: &Context,
-			width: u32,
-			height: u32,
-			frame: Vec<Color32>,
-			idx: usize,
-		) -> TextureHandle {
+		let image = read::read(path, |width, height, frame| {
 			ctx.load_texture(
-				idx.to_string(),
+				"", // has no importance
 				egui::ColorImage {
 					size: [width.try_into().unwrap(), height.try_into().unwrap()],
-					pixels: frame,
+					pixels: frame.into(),
 				},
 				TextureFilter::Linear,
 			)
-		}
-
-		let read::Image {
-			format,
-			width,
-			height,
-			frames,
-		} = read::Image::read(path)?;
-		let inner = match frames.len() {
-			0 => unreachable!(),
-			1 => Inner::Single(load_texture(
-				ctx,
-				width,
-				height,
-				frames.into_iter().next().unwrap().0.into(),
-				0,
-			)),
-			_ => {
-				let current_delay = frames[0].1;
-				let textures = frames
-					.into_iter()
-					.enumerate()
-					.map(|(idx, (frame, delay))| {
-						let texture = load_texture(ctx, width, height, frame.into(), idx);
-						(texture, delay)
-					})
-					.collect();
-				Inner::Animated {
-					textures,
-					current_frame: CurrentFrame::new(current_delay),
-					playing: true,
-				}
-			}
-		};
-
-		Ok(Image {
-			format,
-			width,
-			height,
-			inner,
-		})
+		})?;
+		Ok(image)
 	}
 }

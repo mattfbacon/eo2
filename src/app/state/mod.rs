@@ -5,18 +5,26 @@ use std::task::Poll;
 use ::image::error::{ImageError, ImageResult};
 use egui::Context;
 
-use super::Image;
+use super::image::Image;
 use crate::app::actor::{Actor, Response};
 use crate::app::next_path::Direction as NextPathDirection;
 
+pub mod play;
+
 struct OpenImage {
-	status: ImageResult<()>,
+	status: ImageResult<play::State>,
 	path: PathBuf,
 }
 
 pub enum NavigationMode {
 	InDirectory,
 	Specified { paths: Vec<PathBuf>, current: usize },
+}
+
+impl NavigationMode {
+	pub fn specified(paths: Vec<PathBuf>) -> Self {
+		Self::Specified { paths, current: 0 }
+	}
 }
 
 pub struct State {
@@ -44,29 +52,30 @@ impl State {
 		self.current.as_ref().map(|open| &*open.path)
 	}
 
-	pub fn current(&self) -> Option<Result<&Image, &ImageError>> {
+	pub fn current(&self) -> Option<Result<(&play::State, &Image), &ImageError>> {
 		self.current.as_ref().map(|open| {
 			open
 				.status
 				.as_ref()
-				.map(|()| self.cache.get(&open.path).unwrap())
+				.map(|state| (state, self.cache.get(&open.path).unwrap()))
 		})
 	}
 
-	pub fn current_mut(&mut self) -> Option<Result<&mut Image, &ImageError>> {
-		self.current.as_ref().map(|open| {
+	pub fn current_mut(&mut self) -> Option<Result<(&mut play::State, &mut Image), &ImageError>> {
+		self.current.as_mut().map(|open| {
 			open
 				.status
-				.as_ref()
-				.map(|()| self.cache.get_mut(&open.path).unwrap())
+				.as_mut()
+				.map(|state| (state, self.cache.get_mut(&open.path).unwrap()))
+				.map_err(|error_mut| &*error_mut) // un-mutable-ify
 		})
 	}
 
 	pub fn open(&mut self, path: PathBuf) {
-		if self.cache.contains_key(&path) {
+		if let Some(cached) = self.cache.get(&path) {
 			self.current = Some(OpenImage {
 				path,
-				status: Ok(()),
+				status: Ok(cached.make_play_state()),
 			});
 		} else {
 			self.actor.load_image(path);
@@ -95,7 +104,9 @@ impl State {
 			match response {
 				Response::LoadImage(path, loaded) => {
 					let status = loaded.map(|image| {
+						let play_state = image.make_play_state();
 						self.cache.insert(path.clone(), image);
+						play_state
 					});
 					self.current = Some(OpenImage { status, path });
 				}

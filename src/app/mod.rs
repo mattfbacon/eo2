@@ -3,8 +3,9 @@ use eframe::CreationContext;
 use egui::style::Margin;
 use egui::{Color32, Context, Frame, Painter, Rect, Rounding, Vec2};
 
-use self::image::state::State as ImageState;
 use self::next_path::Direction as NextPathDirection;
+use self::state::play::State as PlayState;
+use self::state::{NavigationMode, State as ImageState};
 use crate::args::Args;
 use crate::config::Config;
 use crate::seconds::Seconds;
@@ -14,6 +15,7 @@ use crate::{config, error, widgets};
 mod actor;
 mod image;
 mod next_path;
+mod state;
 
 #[derive(Default, Clone, Copy, Debug)]
 enum SlideshowState {
@@ -67,15 +69,9 @@ impl App {
 	#[allow(clippy::needless_pass_by_value)] // consistency
 	pub fn new(Args { paths }: Args, config: Config, cc: &CreationContext<'_>) -> Self {
 		let (first_path, navigation_mode) = if paths.len() >= 2 {
-			(
-				Some(paths[0].clone()),
-				image::state::NavigationMode::Specified { paths, current: 0 },
-			)
+			(Some(paths[0].clone()), NavigationMode::specified(paths))
 		} else {
-			(
-				paths.into_iter().next(),
-				image::state::NavigationMode::InDirectory,
-			)
+			(paths.into_iter().next(), NavigationMode::InDirectory)
 		};
 
 		let mut ret = Self {
@@ -223,7 +219,7 @@ impl App {
 			}
 
 			if this.image_state.current().map_or(false, |current| {
-				current.map_or(false, image::Image::is_animated)
+				current.map_or(false, |(_state, image)| image.is_animated())
 			}) {
 				ui.toggle_value(&mut this.config.show_frames, "🎞")
 					.on_hover_text("Toggle frames");
@@ -268,7 +264,7 @@ impl App {
 			return;
 		}
 
-		let Some(Ok(image)) = self.image_state.current() else { return };
+		let Some(Ok((_state, image))) = self.image_state.current() else { return };
 
 		egui::SidePanel::right("properties").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
@@ -279,7 +275,7 @@ impl App {
 				rows.row("Width", |ui| ui.label(image.width.to_string()));
 				rows.row("Height", |ui| ui.label(image.height.to_string()));
 				rows.row("Format", |ui| ui.label(format_to_string(image.format)));
-				rows.row("Kind", |ui| ui.label(image.inner.kind()));
+				rows.row("Kind", |ui| ui.label(image.kind().repr()));
 			});
 		});
 	}
@@ -290,14 +286,13 @@ impl App {
 		}
 
 		let Some(Ok(
-			image::Image {
-				inner: image::Inner::Animated {
-					textures,
+			(
+				PlayState::Animated {
 					current_frame,
 					playing,
 				},
-				..
-			}
+				image::Image { frames, .. }
+			)
 				)) = self.image_state.current_mut() else { return; };
 
 		let outer_frame_size = Vec2::splat(100.0); // XXX 100 is arbitrary; make it configurable?
@@ -319,11 +314,11 @@ impl App {
 				egui::ScrollArea::horizontal().show_columns(
 					ui,
 					outer_frame_size.x,
-					textures.len(),
+					frames.len(),
 					|ui, visible_range| {
 						// iterate over an enumerated subslice with correct indices
 						// XXX more elegant way to do that?
-						for (idx, (texture, frame_time)) in textures[visible_range.clone()]
+						for (idx, (texture, frame_time)) in frames[visible_range.clone()]
 							.iter()
 							.enumerate()
 							.map(|(idx, v)| (idx + visible_range.start, v))
@@ -338,7 +333,7 @@ impl App {
 							}
 							// inline of on_hover_text that lazily evaluates `format!`
 							response.on_hover_ui(|ui| {
-								ui.label(format!("Frame {}, {}", idx + 1, textures[idx].1));
+								ui.label(format!("Frame {}, {}", idx + 1, frames[idx].1));
 							});
 						}
 					},
@@ -376,19 +371,18 @@ impl App {
 		};
 
 		panel.show(ctx, |ui| match self.image_state.current_mut() {
-			Some(Ok(image)) => {
+			Some(Ok((state, image))) => {
 				ui.centered_and_justified(|ui| {
 					self.config.background.draw(ui.painter(), ui.max_rect());
-					match &mut image.inner {
-						image::Inner::Single(texture) => {
-							ui.add(widgets::Image::for_texture(texture));
+					match state {
+						PlayState::Single => {
+							ui.add(widgets::Image::for_texture(&image.frames[0].0));
 						}
-						image::Inner::Animated {
-							textures,
+						PlayState::Animated {
 							current_frame,
 							playing,
 						} => {
-							let (current_texture, _) = &textures[current_frame.idx];
+							let (current_texture, _) = &image.frames[current_frame.idx];
 							if ui
 								.add(widgets::Image::for_texture(current_texture).sense(egui::Sense::click()))
 								.clicked()
@@ -397,7 +391,11 @@ impl App {
 							}
 							if *playing {
 								let elapsed = ctx.input().unstable_dt;
-								current_frame.advance(Seconds::new_secs_f32_saturating(elapsed), textures);
+								current_frame.advance(
+									Seconds::new_secs_f32_saturating(elapsed),
+									image.frames.len(),
+									|idx| image.frames[idx].1,
+								);
 								ctx.request_repaint_after(current_frame.remaining.into());
 							}
 						}

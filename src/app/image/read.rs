@@ -6,16 +6,10 @@ use image::error::{DecodingError, ImageError, ImageFormatHint};
 use image::io::Limits;
 use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
 
+use super::Image;
 use crate::seconds::Seconds;
 
-pub type Frame = Box<[Color32]>;
-
-pub struct Image {
-	pub format: ImageFormat,
-	pub width: u32,
-	pub height: u32,
-	pub frames: Vec<(Frame, Seconds)>,
-}
+type Frame = Box<[Color32]>;
 
 trait DecoderVisitor {
 	type Return;
@@ -81,16 +75,18 @@ fn load_decoder<V: DecoderVisitor>(
 	}
 }
 
-struct Visitor;
+struct Visitor<F> {
+	frame_mapper: F,
+}
 
-impl DecoderVisitor for Visitor {
-	type Return = Image;
+impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for Visitor<F> {
+	type Return = Image<OutFrameType>;
 
 	fn visit<'a, D: ImageDecoder<'a>>(
-		self,
+		mut self,
 		mut decoder: D,
 		format: ImageFormat,
-	) -> Result<Image, ImageError> {
+	) -> Result<Self::Return, ImageError> {
 		let mut limits = Limits::default();
 		limits.max_image_width = Some(1_000_000);
 		limits.max_image_height = Some(1_000_000);
@@ -100,23 +96,23 @@ impl DecoderVisitor for Visitor {
 		let image = DynamicImage::from_decoder(decoder)?.into_rgba8();
 		let (width, height) = image.dimensions();
 		// `egui::Color32` and `image::Rgba<u8>` have the same size (4) and align (1) so `cast_vec` will never fail
-		let frames = bytemuck::allocation::cast_vec(image.into_raw());
+		let frame = bytemuck::allocation::cast_vec(image.into_raw());
 		Ok(Image {
 			format,
 			width,
 			height,
 			frames: vec![(
-				frames.into(),
+				(self.frame_mapper)(width, height, frame.into()),
 				Seconds::new_secs(1).unwrap(), // this value is ignored
 			)],
 		})
 	}
 
 	fn visit_animated<'a, D: AnimationDecoder<'a>>(
-		self,
+		mut self,
 		decoder: D,
 		format: ImageFormat,
-	) -> Result<Image, ImageError> {
+	) -> Result<Self::Return, ImageError> {
 		let error =
 			|error| ImageError::Decoding(image::error::DecodingError::new(format.into(), error));
 		let partial_frame_error = || error("partial frames are unimplemented");
@@ -138,14 +134,16 @@ impl DecoderVisitor for Visitor {
 						}
 					}
 				}
+				let (width, height) = this_size;
 
 				if frame.top() != 0 || frame.left() != 0 {
 					return Err(partial_frame_error());
 				}
 
 				let delay = frame.delay();
+				let frame = bytemuck::allocation::cast_vec(frame.into_buffer().into_raw());
 				Ok((
-					bytemuck::allocation::cast_vec(frame.into_buffer().into_raw()).into(),
+					(self.frame_mapper)(width, height, frame.into()),
 					delay.try_into().map_err(|_| error("delay out of range"))?,
 				))
 			})
@@ -167,15 +165,22 @@ impl DecoderVisitor for Visitor {
 	}
 }
 
-impl Image {
-	pub fn read(path: &Path) -> Result<Self, ImageError> {
-		let reader = image::io::Reader::open(path)?;
-		let reader = reader.with_guessed_format()?;
-		let format = reader.format().ok_or_else(|| {
-			ImageError::Unsupported(ImageFormatHint::PathExtension(path.to_owned()).into())
-		})?;
-		let mut reader = reader.into_inner();
-		reader.seek(SeekFrom::Start(0))?;
-		load_decoder(reader, format, Visitor)
-	}
+pub fn read<OutFrameType>(
+	path: &Path,
+	load_frame: impl FnMut(u32, u32, Frame) -> OutFrameType,
+) -> Result<Image<OutFrameType>, ImageError> {
+	let reader = image::io::Reader::open(path)?;
+	let reader = reader.with_guessed_format()?;
+	let format = reader.format().ok_or_else(|| {
+		ImageError::Unsupported(ImageFormatHint::PathExtension(path.to_owned()).into())
+	})?;
+	let mut reader = reader.into_inner();
+	reader.seek(SeekFrom::Start(0))?;
+	load_decoder(
+		reader,
+		format,
+		Visitor {
+			frame_mapper: load_frame,
+		},
+	)
 }
