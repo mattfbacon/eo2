@@ -2,7 +2,7 @@ use std::io::{BufRead, Seek, SeekFrom};
 use std::path::Path;
 
 use egui::Color32;
-use image::error::{DecodingError, ImageError, ImageFormatHint};
+use image::error::{DecodingError, ImageError, ImageFormatHint, ImageResult};
 use image::io::Limits;
 use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
 
@@ -18,19 +18,19 @@ trait DecoderVisitor {
 		self,
 		decoder: D,
 		format: ImageFormat,
-	) -> Result<Self::Return, ImageError>;
+	) -> ImageResult<Self::Return>;
 	fn visit_animated<'a, D: AnimationDecoder<'a>>(
 		self,
 		decoder: D,
 		format: ImageFormat,
-	) -> Result<Self::Return, ImageError>;
+	) -> ImageResult<Self::Return>;
 }
 
 fn load_decoder<V: DecoderVisitor>(
 	reader: impl BufRead + Seek,
 	format: ImageFormat,
 	visitor: V,
-) -> Result<V::Return, ImageError> {
+) -> ImageResult<V::Return> {
 	macro_rules! visitors {
 		(@arm @png $($decoder:ident)::*) => {{
 			let decoder = image::codecs:: $($decoder)::* ::new(reader)?;
@@ -87,7 +87,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 		mut self,
 		mut decoder: D,
 		format: ImageFormat,
-	) -> Result<Self::Return, ImageError> {
+	) -> ImageResult<Self::Return> {
 		let mut limits = Limits::default();
 		limits.max_image_width = Some(1_000_000);
 		limits.max_image_height = Some(1_000_000);
@@ -114,7 +114,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 		mut self,
 		decoder: D,
 		format: ImageFormat,
-	) -> Result<Self::Return, ImageError> {
+	) -> ImageResult<Self::Return> {
 		let error =
 			|error| ImageError::Decoding(image::error::DecodingError::new(format.into(), error));
 		let partial_frame_error = || error("partial frames are unimplemented");
@@ -171,7 +171,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 pub fn read<OutFrameType>(
 	path: &Path,
 	load_frame: impl FnMut(u32, u32, Frame) -> OutFrameType,
-) -> Result<Image<OutFrameType>, ImageError> {
+) -> ImageResult<Image<OutFrameType>> {
 	let metadata = Metadata::from_path(path)?;
 	let reader = image::io::Reader::open(path)?;
 	let reader = reader.with_guessed_format()?;

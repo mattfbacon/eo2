@@ -5,7 +5,7 @@ use std::task::Poll;
 
 use clru::{CLruCache, CLruCacheConfig};
 use egui::Context;
-use image::error::{ImageError, ImageResult};
+use image::error::ImageResult;
 use xxhash_rust::xxh3::Xxh3Builder;
 
 use self::actor::{Actor, Response};
@@ -115,7 +115,7 @@ impl State {
 							.cache
 							.put_with_weight(path.clone(), Rc::clone(&image))
 							.map_err(|_| {
-								use image::error::{LimitError, LimitErrorKind};
+								use image::error::{ImageError, LimitError, LimitErrorKind};
 								ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
 							})?;
 						Ok(OpenImageInner { play_state, image })
