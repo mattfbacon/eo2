@@ -97,7 +97,7 @@ impl State {
 				Poll::Pending
 			}
 			NavigationMode::Specified { paths, current } => {
-				*current = (*current + 1) % paths.len();
+				*current = direction.step(*current, paths.len());
 				let next_path = paths[*current].clone();
 				Poll::Ready(next_path)
 			}

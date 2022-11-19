@@ -21,6 +21,13 @@ impl Direction {
 			Self::Left => left < right,
 		}
 	}
+
+	pub fn step(self, current: usize, num_items: usize) -> usize {
+		match self {
+			Self::Right => (current + 1) % num_items,
+			Self::Left => current.checked_sub(1).unwrap_or(num_items - 1),
+		}
+	}
 }
 
 pub fn next_path(current_path: &Path, direction: Direction) -> io::Result<Option<PathBuf>> {
