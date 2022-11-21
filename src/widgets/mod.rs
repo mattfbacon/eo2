@@ -4,11 +4,13 @@ pub use self::columns::ShowColumnsExt;
 pub use self::image::Image;
 pub use self::image_button::ImageButton;
 pub use self::key_value::KeyValue;
+pub use self::unit_input::UnitInput;
 
 pub mod columns;
 pub mod image;
 pub mod image_button;
 pub mod key_value;
+pub mod unit_input;
 
 fn image_size(actual: Vec2, max: Vec2) -> Vec2 {
 	assert!(!actual.any_nan(), "NaN encountered");

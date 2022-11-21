@@ -1,19 +1,22 @@
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
+use serde::{de, ser};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(try_from = "SerdeRepr", into = "SerdeRepr")]
+#[derive(Debug, Clone, Copy)]
 pub struct Duration {
 	micros: u32,
 }
 
-#[derive(Serialize, Deserialize)]
-struct SerdeRepr(f32);
+impl ser::Serialize for Duration {
+	fn serialize<S: ser::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+		s.collect_str(self)
+	}
+}
 
-impl From<Duration> for SerdeRepr {
-	fn from(seconds: Duration) -> Self {
-		Self(seconds.as_secs_f32())
+impl<'de> de::Deserialize<'de> for Duration {
+	fn deserialize<D: de::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+		let raw = <std::borrow::Cow<'_, str>>::deserialize(d)?;
+		raw.parse().map_err(de::Error::custom)
 	}
 }
 
@@ -23,22 +26,32 @@ pub enum FromStrError {
 	Float(#[from] std::num::ParseFloatError),
 	#[error(transparent)]
 	OutOfRange(#[from] OutOfRange),
+	#[error("unknown unit {0:?}")]
+	UnknownUnit(String),
 }
 
 impl FromStr for Duration {
 	type Err = FromStrError;
 
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let value = s.parse().map_err(Self::Err::Float)?;
-		Ok(Self::new_secs_f32(value)?)
-	}
-}
+	fn from_str(raw: &str) -> Result<Self, Self::Err> {
+		let amount_end = raw
+			.bytes()
+			.position(|ch| !ch.is_ascii_digit() && ch != b'-' && ch != b'.')
+			.unwrap_or(raw.len());
+		let (amount, unit) = raw.split_at(amount_end);
+		let unit = unit.trim_start();
 
-impl TryFrom<SerdeRepr> for Duration {
-	type Error = OutOfRange;
+		let amount = amount.parse::<f32>()?;
+		let scale = match unit.to_ascii_lowercase().as_str() {
+			"us" | "µs" => 1.0,
+			"ms" => 1_000.0,
+			"s" => 1_000_000.0,
+			_ => return Err(FromStrError::UnknownUnit(unit.to_owned())),
+		};
+		let micros = amount * scale;
 
-	fn try_from(repr: SerdeRepr) -> Result<Self, Self::Error> {
-		Self::new_secs_f32(repr.0)
+		let micros = az::checked_cast(micros).ok_or(OutOfRange)?;
+		Ok(Self { micros })
 	}
 }
 
@@ -117,14 +130,15 @@ impl TryFrom<image::Delay> for Duration {
 
 impl std::fmt::Display for Duration {
 	fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		let (value, unit) = if self.micros < 1_000 {
-			(self.micros, "us")
-		} else if self.micros < 1_000_000 {
-			(self.micros / 1_000, "ms")
+		let micros: f32 = az::cast(self.micros);
+		let (value, unit) = if micros < 1_000.0 {
+			(micros, "us")
+		} else if micros < 1_000_000.0 {
+			(micros / 1_000.0, "ms")
 		} else {
-			(self.micros / 1_000_000, "s")
+			(micros / 1_000_000.0, "s")
 		};
 
-		write!(formatter, "{value:.0} {unit}")
+		write!(formatter, "{value:.3} {unit}")
 	}
 }

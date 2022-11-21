@@ -80,17 +80,14 @@ impl Slideshow {
 	fn ui(&mut self, ui: &mut egui::Ui) {
 		widgets::KeyValue::new("config-slideshow-kv").show(ui, |mut rows| {
 			rows.row("Interval", |ui| {
+				/*
 				let mut secs = self.interval.as_secs_f32();
 				let widget = egui::DragValue::new(&mut secs)
 					.speed(0.01)
 					.suffix(" s")
 					.clamp_range(0.001..=Duration::MAX.as_secs_f32());
-				let response = ui.add(widget);
-				if response.changed() {
-					if let Ok(new) = Duration::new_secs_f32(secs) {
-						self.interval = new;
-					}
-				}
+					*/
+				ui.add(crate::widgets::UnitInput::duration(&mut self.interval));
 			});
 		});
 	}
@@ -143,6 +140,14 @@ impl Config {
 			});
 			rows.row("Slideshow", |ui| {
 				self.slideshow.ui(ui);
+			});
+			rows.row("Cache Size", |ui| {
+				let mut size = self.cache_size.get();
+				if ui.add(crate::widgets::UnitInput::size(&mut size)).changed() {
+					if let Some(nz) = NonZeroUsize::new(size) {
+						self.cache_size = nz;
+					}
+				}
 			});
 		});
 	}
