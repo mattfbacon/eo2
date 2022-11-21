@@ -197,7 +197,8 @@ impl App {
 
 		let left = |this: &mut Self, ui: &mut egui::Ui| {
 			if let Some(current_path) = this.image_state.current_path() {
-				ui.label(current_path.display().to_string());
+				let current_path = current_path.display().to_string();
+				ui.add(egui::TextEdit::singleline(&mut current_path.as_str()).frame(false));
 			}
 		};
 
