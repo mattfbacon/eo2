@@ -7,7 +7,7 @@ use figment::providers::{Format as _, Toml};
 use figment::Figment;
 use serde::{Deserialize, Serialize};
 
-use crate::seconds::Seconds;
+use crate::duration::Duration;
 use crate::widgets;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -61,7 +61,7 @@ impl BackgroundColor {
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub struct Slideshow {
 	#[serde(default = "default_interval")]
-	pub interval: Seconds,
+	pub interval: Duration,
 }
 
 impl Default for Slideshow {
@@ -72,8 +72,8 @@ impl Default for Slideshow {
 	}
 }
 
-fn default_interval() -> Seconds {
-	Seconds::new_secs(5).unwrap()
+fn default_interval() -> Duration {
+	Duration::new_secs(5).unwrap()
 }
 
 impl Slideshow {
@@ -84,10 +84,10 @@ impl Slideshow {
 				let widget = egui::DragValue::new(&mut secs)
 					.speed(0.01)
 					.suffix(" s")
-					.clamp_range(0.001..=Seconds::MAX.as_secs_f32());
+					.clamp_range(0.001..=Duration::MAX.as_secs_f32());
 				let response = ui.add(widget);
 				if response.changed() {
-					if let Ok(new) = Seconds::new_secs_f32(secs) {
+					if let Ok(new) = Duration::new_secs_f32(secs) {
 						self.interval = new;
 					}
 				}

@@ -9,7 +9,7 @@ use self::state::play::State as PlayState;
 use self::state::{NavigationMode, State as ImageState};
 use crate::args::Args;
 use crate::config::Config;
-use crate::seconds::Seconds;
+use crate::duration::Duration;
 use crate::widgets::ShowColumnsExt as _;
 use crate::{config, error, widgets};
 
@@ -20,7 +20,7 @@ mod state;
 #[derive(Default, Clone, Copy, Debug)]
 enum SlideshowState {
 	Active {
-		remaining: Seconds,
+		remaining: Duration,
 	},
 	#[default]
 	Inactive,
@@ -40,7 +40,7 @@ impl SlideshowState {
 		};
 	}
 
-	fn advance(&mut self, config: &Config, secs: Seconds) -> bool {
+	fn advance(&mut self, config: &Config, secs: Duration) -> bool {
 		match self {
 			Self::Active { remaining } => {
 				let has_elapsed = remaining.advance(secs);
@@ -368,7 +368,7 @@ impl App {
 
 		let next_from_slideshow = self
 			.slideshow
-			.advance(&self.config, Seconds::new_secs_f32_saturating(elapsed));
+			.advance(&self.config, Duration::new_secs_f32_saturating(elapsed));
 
 		if next_from_slideshow {
 			self.move_right();
@@ -419,7 +419,7 @@ impl App {
 							if *playing {
 								let elapsed = ctx.input().unstable_dt;
 								current_frame.advance(
-									Seconds::new_secs_f32_saturating(elapsed),
+									Duration::new_secs_f32_saturating(elapsed),
 									image.frames.len(),
 									|idx| image.frames[idx].1,
 								);

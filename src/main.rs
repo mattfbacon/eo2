@@ -21,8 +21,8 @@
 mod app;
 mod args;
 mod config;
+mod duration;
 mod error;
-mod seconds;
 mod widgets;
 
 fn main() -> Result<(), ()> {

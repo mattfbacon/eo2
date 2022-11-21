@@ -4,7 +4,7 @@ use egui::{Context, TextureFilter, TextureHandle};
 use image::{ImageFormat, ImageResult};
 use once_cell::sync::Lazy;
 
-use crate::seconds::Seconds;
+use crate::duration::Duration;
 
 mod read;
 
@@ -42,7 +42,7 @@ pub struct Image<FrameType = TextureHandle> {
 	pub format: ImageFormat,
 	pub width: u32,
 	pub height: u32,
-	pub frames: Vec<(FrameType, Seconds)>,
+	pub frames: Vec<(FrameType, Duration)>,
 	pub metadata: Metadata,
 }
 

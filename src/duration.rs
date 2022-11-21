@@ -4,15 +4,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(try_from = "SerdeRepr", into = "SerdeRepr")]
-pub struct Seconds {
+pub struct Duration {
 	micros: u32,
 }
 
 #[derive(Serialize, Deserialize)]
 struct SerdeRepr(f32);
 
-impl From<Seconds> for SerdeRepr {
-	fn from(seconds: Seconds) -> Self {
+impl From<Duration> for SerdeRepr {
+	fn from(seconds: Duration) -> Self {
 		Self(seconds.as_secs_f32())
 	}
 }
@@ -25,7 +25,7 @@ pub enum FromStrError {
 	OutOfRange(#[from] OutOfRange),
 }
 
-impl FromStr for Seconds {
+impl FromStr for Duration {
 	type Err = FromStrError;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -34,7 +34,7 @@ impl FromStr for Seconds {
 	}
 }
 
-impl TryFrom<SerdeRepr> for Seconds {
+impl TryFrom<SerdeRepr> for Duration {
 	type Error = OutOfRange;
 
 	fn try_from(repr: SerdeRepr) -> Result<Self, Self::Error> {
@@ -46,7 +46,7 @@ impl TryFrom<SerdeRepr> for Seconds {
 #[error("value out of range")]
 pub struct OutOfRange;
 
-impl Seconds {
+impl Duration {
 	pub const MAX: Self = Self { micros: u32::MAX };
 
 	pub fn new_secs_f32(secs: f32) -> Result<Self, OutOfRange> {
@@ -89,7 +89,7 @@ impl Seconds {
 
 	/// Subtract `elapsed_secs` from the current value.
 	/// Return whether the duration is elapsed after subtracting (same as `is_over`).
-	pub fn advance(&mut self, elapsed: Seconds) -> bool {
+	pub fn advance(&mut self, elapsed: Duration) -> bool {
 		self.micros = self.micros.saturating_sub(elapsed.micros);
 		self.is_over()
 	}
@@ -100,13 +100,13 @@ impl Seconds {
 	}
 }
 
-impl From<Seconds> for std::time::Duration {
-	fn from(seconds: Seconds) -> Self {
+impl From<Duration> for std::time::Duration {
+	fn from(seconds: Duration) -> Self {
 		Self::from_micros(seconds.micros.into())
 	}
 }
 
-impl TryFrom<image::Delay> for Seconds {
+impl TryFrom<image::Delay> for Duration {
 	type Error = OutOfRange;
 
 	fn try_from(delay: image::Delay) -> Result<Self, OutOfRange> {
@@ -115,7 +115,7 @@ impl TryFrom<image::Delay> for Seconds {
 	}
 }
 
-impl std::fmt::Display for Seconds {
+impl std::fmt::Display for Duration {
 	fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let (value, unit) = if self.micros < 1_000 {
 			(self.micros, "us")

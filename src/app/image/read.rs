@@ -7,7 +7,7 @@ use image::io::Limits;
 use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
 
 use super::{Image, Metadata};
-use crate::seconds::Seconds;
+use crate::duration::Duration;
 
 type Frame = Box<[Color32]>;
 
@@ -104,7 +104,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 			height,
 			frames: vec![(
 				(self.frame_mapper)(width, height, frame.into()),
-				Seconds::new_secs(1).unwrap(), // this value is ignored
+				Duration::new_secs(1).unwrap(), // this value is ignored
 			)],
 			metadata: self.metadata,
 		})
