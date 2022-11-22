@@ -197,8 +197,19 @@ impl App {
 
 		let left = |this: &mut Self, ui: &mut egui::Ui| {
 			if let Some(current_path) = this.image_state.current_path() {
-				let current_path = current_path.display().to_string();
-				ui.add(egui::TextEdit::singleline(&mut current_path.as_str()).frame(false));
+				let response =
+					ui.add(egui::Label::new(current_path.display().to_string()).sense(egui::Sense::click()));
+				let clicked = response.clicked();
+				let show_copied =
+					ctx.animate_bool_with_time(response.id, clicked, ctx.style().animation_time * 2.0) > 0.0;
+				response.on_hover_text(if show_copied {
+					"Copied!"
+				} else {
+					"Click to copy"
+				});
+				if clicked {
+					ui.output().copied_text = current_path.display().to_string();
+				}
 			}
 		};
 
