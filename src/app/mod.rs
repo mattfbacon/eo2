@@ -372,7 +372,11 @@ impl App {
 			.advance(&self.config, Duration::new_secs_f32_saturating(elapsed));
 
 		if next_from_slideshow {
-			self.move_right();
+			if self.config.slideshow.shuffle {
+				self.move_in(NextPathDirection::Random);
+			} else {
+				self.move_right();
+			}
 		}
 
 		if let SlideshowState::Active { remaining } = self.slideshow {
@@ -491,11 +495,11 @@ impl App {
 	}
 
 	fn move_right(&mut self) {
-		self.move_in(NextPathDirection::Right);
+		self.move_in(NextPathDirection::RIGHT);
 	}
 
 	fn move_left(&mut self) {
-		self.move_in(NextPathDirection::Left);
+		self.move_in(NextPathDirection::LEFT);
 	}
 
 	fn handle_actor_responses(&mut self) {

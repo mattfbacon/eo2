@@ -62,18 +62,25 @@ impl BackgroundColor {
 pub struct Slideshow {
 	#[serde(default = "default_interval")]
 	pub interval: Duration,
+	#[serde(default = "default_shuffle")]
+	pub shuffle: bool,
 }
 
 impl Default for Slideshow {
 	fn default() -> Self {
 		Self {
 			interval: default_interval(),
+			shuffle: default_shuffle(),
 		}
 	}
 }
 
 fn default_interval() -> Duration {
 	Duration::new_secs(5).unwrap()
+}
+
+fn default_shuffle() -> bool {
+	false
 }
 
 impl Slideshow {
@@ -89,6 +96,7 @@ impl Slideshow {
 					*/
 				ui.add(crate::widgets::UnitInput::duration(&mut self.interval));
 			});
+			rows.row("Shuffle", |ui| ui.checkbox(&mut self.shuffle, ""));
 		});
 	}
 }
