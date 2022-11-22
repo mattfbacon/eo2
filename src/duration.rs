@@ -15,8 +15,18 @@ impl ser::Serialize for Duration {
 
 impl<'de> de::Deserialize<'de> for Duration {
 	fn deserialize<D: de::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-		let raw = <std::borrow::Cow<'_, str>>::deserialize(d)?;
-		raw.parse().map_err(de::Error::custom)
+		#[derive(serde::Deserialize)]
+		#[serde(untagged)]
+		enum Helper<'a> {
+			Float(f32),
+			Str(std::borrow::Cow<'a, str>),
+		}
+
+		let helper = Helper::deserialize(d)?;
+		match helper {
+			Helper::Float(float) => Self::new_secs_f32(float).map_err(de::Error::custom),
+			Helper::Str(raw) => raw.parse().map_err(de::Error::custom),
+		}
 	}
 }
 
@@ -45,7 +55,8 @@ impl FromStr for Duration {
 		let scale = match unit.to_ascii_lowercase().as_str() {
 			"us" | "µs" => 1.0,
 			"ms" => 1_000.0,
-			"s" => 1_000_000.0,
+			// no unit = seconds
+			"" | "s" => 1_000_000.0,
 			_ => return Err(FromStrError::UnknownUnit(unit.to_owned())),
 		};
 		let micros = amount * scale;
@@ -136,9 +147,10 @@ impl std::fmt::Display for Duration {
 		} else if micros < 1_000_000.0 {
 			(micros / 1_000.0, "ms")
 		} else {
-			(micros / 1_000_000.0, "s")
+			// ensure that there are only 3 decimal places at most
+			((micros / 1_000.0).round() / 1_000.0, "s")
 		};
 
-		write!(formatter, "{value:.3} {unit}")
+		write!(formatter, "{value} {unit}")
 	}
 }
