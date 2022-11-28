@@ -214,6 +214,9 @@ impl App {
 		};
 
 		let mut right = |this: &mut Self, ui: &mut egui::Ui| {
+			ui.toggle_value(&mut this.settings_open, "⛭")
+				.on_hover_text("Toggle settings window");
+
 			{
 				let mut fullscreen = frame.info().window_info.fullscreen;
 				if ui
@@ -222,6 +225,22 @@ impl App {
 					.changed()
 				{
 					frame.set_fullscreen(fullscreen);
+				}
+			}
+
+			this.config.light_dark_toggle_button(ui);
+
+			if this.image_state.current.is_some() {
+				let mut slideshow_active = this.slideshow.is_active();
+				let icon = if slideshow_active { "⏸" } else { "▶" };
+				let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
+
+				if changed {
+					if slideshow_active {
+						this.slideshow.start(&this.config);
+					} else {
+						this.slideshow.stop();
+					}
 				}
 			}
 
@@ -244,25 +263,6 @@ impl App {
 				ui.toggle_value(&mut this.config.show_frames, "🎞")
 					.on_hover_text("Toggle frames");
 			}
-
-			ui.toggle_value(&mut this.settings_open, "⛭")
-				.on_hover_text("Toggle settings window");
-
-			{
-				let mut slideshow_active = this.slideshow.is_active();
-				let icon = if slideshow_active { "⏸" } else { "▶" };
-				let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
-
-				if changed {
-					if slideshow_active {
-						this.slideshow.start(&this.config);
-					} else {
-						this.slideshow.stop();
-					}
-				}
-			}
-
-			this.config.light_dark_toggle_button(ui);
 
 			if this.image_state.waiting() {
 				ui.spinner().on_hover_text("Loading");
