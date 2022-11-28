@@ -231,6 +231,10 @@ impl App {
 			this.config.light_dark_toggle_button(ui);
 
 			if this.image_state.current.is_some() {
+				if ui.button("🗑").clicked() {
+					this.image_state.trash_current();
+				}
+
 				let mut slideshow_active = this.slideshow.is_active();
 				let icon = if slideshow_active { "⏸" } else { "▶" };
 				let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
@@ -526,6 +530,7 @@ impl eframe::App for App {
 
 		self.update_slideshow(ctx);
 		self.handle_actor_responses();
+		self.image_state.show_errors(ctx);
 
 		self.show_settings(ctx, frame);
 		self.show_internal(ctx, frame);

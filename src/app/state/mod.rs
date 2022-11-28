@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::Poll;
 
 use clru::{CLruCache, CLruCacheConfig};
@@ -45,12 +46,18 @@ impl clru::WeightScale<PathBuf, Rc<Image>> for ImageSizeWeight {
 	}
 }
 
+static ERRORS_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+
 pub struct State {
 	cache: CLruCache<PathBuf, Rc<Image>, Xxh3Builder, ImageSizeWeight>,
 	pub current: Option<OpenImage>,
 	navigation_mode: NavigationMode,
 	actor: Actor,
+	errors: Vec<(egui::Id, String)>,
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct ErrorAcknowledged;
 
 impl State {
 	pub fn new(egui_ctx: Context, cache_size: NonZeroUsize, navigation_mode: NavigationMode) -> Self {
@@ -63,11 +70,43 @@ impl State {
 			current: None,
 			navigation_mode,
 			actor: Actor::spawn(egui_ctx),
+			errors: Vec::new(),
 		}
 	}
 
 	pub fn waiting(&self) -> bool {
 		self.actor.waiting()
+	}
+
+	fn push_error(&mut self, error: String) {
+		let id =
+			egui::Id::new("image-state-error").with(ERRORS_ID_COUNTER.fetch_add(1, Ordering::Relaxed));
+		self.errors.push((id, error));
+	}
+
+	fn show_errors_inner(
+		&mut self,
+		mut show: impl FnMut(egui::Id, &str) -> Option<ErrorAcknowledged>,
+	) {
+		self.errors.retain(|(id, error)| match show(*id, error) {
+			Some(ErrorAcknowledged) => false,
+			None => true,
+		});
+	}
+
+	pub fn show_errors(&mut self, ctx: &Context) {
+		self.show_errors_inner(|id, error| {
+			let response = egui::Window::new("Error").id(id).show(ctx, |ui| {
+				ui.heading("An error occurred.");
+				ui.label(error);
+				ui.vertical_centered(|ui| ui.button("Ok").clicked()).inner
+			});
+
+			response
+				.and_then(|response| response.inner)
+				.unwrap_or(false)
+				.then_some(ErrorAcknowledged)
+		});
 	}
 
 	pub fn current_path(&self) -> Option<&Path> {
@@ -105,6 +144,12 @@ impl State {
 		}
 	}
 
+	pub fn trash_current(&mut self) {
+		if let Some(path) = self.current_path() {
+			self.actor.trash_file(path.into());
+		}
+	}
+
 	pub fn handle_actor_responses(&mut self) {
 		while let Some(response) = self.actor.poll_response() {
 			match response {
@@ -124,10 +169,16 @@ impl State {
 					self.current = Some(OpenImage { inner, path });
 				}
 				Response::NextPath(next) => match next {
-					Ok(Some(next)) => self.open(next),
-					Ok(None) | Err(..) => {
-						// TODO better way of handling Err? a dialog shown to the user?
+					Ok(actor::NextPath::Some(next)) => self.open(next),
+					Ok(actor::NextPath::NoOthers) => (),
+					Ok(actor::NextPath::NoFilesAtAll) => {
+						// not using `current_path` due to borrow granularity
+						if let Some(current) = &self.current {
+							_ = self.cache.pop(&current.path);
+						}
+						self.current = None;
 					}
+					Err(error) => self.push_error(error.to_string()),
 				},
 			}
 		}

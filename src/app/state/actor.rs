@@ -13,12 +13,20 @@ use crate::app::next_path::{next_path, Direction as NextPathDirection};
 enum Command {
 	LoadImage(PathBuf),
 	NextPath(PathBuf, NextPathDirection),
+	TrashFile(PathBuf),
 }
 
-/// Variants in `Response` are named according to their corresponding `Command`.
+pub enum NextPath {
+	Some(PathBuf),
+	NoOthers,
+	NoFilesAtAll,
+}
+
+/// Variants in `Response` are named according to their corresponding `Command`, except where otherwise noted.
 pub enum Response {
 	LoadImage(PathBuf, ImageResult<image::Image>),
-	NextPath(io::Result<Option<PathBuf>>),
+	/// This variant is used for the `ToTrash` command.
+	NextPath(io::Result<NextPath>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,6 +88,10 @@ impl Actor {
 	pub fn next_path(&mut self, path: PathBuf, direction: NextPathDirection) -> SendResult {
 		self.send(Command::NextPath(path, direction))
 	}
+
+	pub fn trash_file(&mut self, path: PathBuf) -> SendResult {
+		self.send(Command::TrashFile(path))
+	}
 }
 
 fn in_thread(
@@ -93,13 +105,21 @@ fn in_thread(
 				let loaded = load_image(egui_ctx, &path);
 				Response::LoadImage(path, loaded)
 			}
-			Command::NextPath(current_path, direction) => {
-				Response::NextPath(next_path(&current_path, direction))
-			}
+			Command::NextPath(current_path, direction) => Response::NextPath(
+				next_path(&current_path, direction)
+					.map(|opt_path| opt_path.map_or(NextPath::NoOthers, NextPath::Some)),
+			),
+			Command::TrashFile(current_path) => Response::NextPath(to_trash(&current_path)),
 		};
 		response_sender.send(response).unwrap();
 		egui_ctx.request_repaint();
 	}
+}
+
+fn to_trash(current_path: &Path) -> io::Result<NextPath> {
+	std::fs::remove_file(current_path)?;
+	next_path(current_path, NextPathDirection::RIGHT)
+		.map(|opt_path| opt_path.map_or(NextPath::NoFilesAtAll, NextPath::Some))
 }
 
 fn load_image(egui_ctx: &egui::Context, path: &Path) -> ImageResult<image::Image> {
