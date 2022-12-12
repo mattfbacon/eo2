@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -13,19 +14,46 @@ pub enum Direction {
 	Random,
 }
 
+fn strip_common_prefix<'l, 'r>(left: &'l str, right: &'r str) -> (&'l str, &'r str) {
+	let num = left
+		.bytes()
+		.zip(right.bytes())
+		.take_while(|(l, r)| l == r)
+		.count();
+	(&left[num..], &right[num..])
+}
+
+fn try_parse_number_prefix(s: &str) -> Option<u64> {
+	let num = s.bytes().take_while(u8::is_ascii_digit).count();
+	s[..num].parse().ok()
+}
+
+fn human_compare(left: &str, right: &str) -> Ordering {
+	let (left, right) = strip_common_prefix(left, right);
+	if let (Some(left), Some(right)) = (
+		try_parse_number_prefix(left),
+		try_parse_number_prefix(right),
+	) {
+		left.cmp(&right)
+	} else {
+		left.cmp(right)
+	}
+}
+
 impl SimpleDirection {
-	fn before<T: Ord + ?Sized>(self, left: &T, right: &T) -> bool {
+	fn for_ordering(self, ordering: Ordering) -> Ordering {
 		match self {
-			Self::Right => left < right,
-			Self::Left => left > right,
+			Self::Right => ordering,
+			Self::Left => ordering.reverse(),
 		}
 	}
 
-	fn after<T: Ord + ?Sized>(self, left: &T, right: &T) -> bool {
-		match self {
-			Self::Right => left > right,
-			Self::Left => left < right,
-		}
+	fn before(self, left: &str, right: &str) -> bool {
+		self.for_ordering(human_compare(left, right)).is_lt()
+	}
+
+	fn after(self, left: &str, right: &str) -> bool {
+		self.for_ordering(human_compare(left, right)).is_gt()
 	}
 
 	pub fn step(self, current: usize, num_items: usize) -> usize {
