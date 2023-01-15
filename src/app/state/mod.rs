@@ -19,6 +19,7 @@ pub mod play;
 pub struct OpenImageInner {
 	pub play_state: play::State,
 	pub image: Rc<Image>,
+	pub zoom: crate::widgets::image::Zoom,
 }
 
 pub struct OpenImage {
@@ -117,7 +118,7 @@ impl State {
 		if let Some(cached) = self.cache.get(&path) {
 			let image = Rc::clone(cached);
 			let play_state = image.make_play_state();
-			let inner = OpenImageInner { play_state, image };
+			let inner = OpenImageInner { play_state, image, zoom: Default::default() };
 			self.current = Some(OpenImage {
 				path,
 				inner: Ok(inner),
@@ -164,7 +165,7 @@ impl State {
 								use image::error::{ImageError, LimitError, LimitErrorKind};
 								ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
 							})?;
-						Ok(OpenImageInner { play_state, image })
+						Ok(OpenImageInner { play_state, image, zoom: Default::default() })
 					});
 					self.current = Some(OpenImage { inner, path });
 				}

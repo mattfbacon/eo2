@@ -415,7 +415,10 @@ impl App {
 		panel.show(ctx, |ui| match &mut self.image_state.current {
 			Some(state::OpenImage {
 				inner: Ok(state::OpenImageInner {
-					play_state, image, ..
+					play_state,
+					image,
+					zoom,
+					..
 				}),
 				..
 			}) => {
@@ -423,17 +426,19 @@ impl App {
 					self.config.background.draw(ui.painter(), ui.max_rect());
 					match play_state {
 						PlayState::Single => {
-							ui.add(widgets::Image::for_texture(&image.frames[0].0));
+							ui.add(widgets::Image::for_texture(&image.frames[0].0).zoom(*zoom));
 						}
 						PlayState::Animated {
 							current_frame,
 							playing,
 						} => {
 							let (current_texture, _) = &image.frames[current_frame.idx];
-							if ui
-								.add(widgets::Image::for_texture(current_texture).sense(egui::Sense::click()))
-								.clicked()
-							{
+							let response = ui.add(
+								widgets::Image::for_texture(current_texture)
+									.clickable(true)
+									.zoom(*zoom),
+							);
+							if response.clicked() {
 								*playing = !*playing;
 							}
 							if *playing {
@@ -444,6 +449,14 @@ impl App {
 									|idx| image.frames[idx].1,
 								);
 								ctx.request_repaint_after(current_frame.remaining.into());
+							}
+						}
+					}
+					{
+						let input = ui.input();
+						if let Some(pointer) = input.pointer.hover_pos() {
+							if ui.max_rect().contains(pointer) {
+								zoom.update_from_input(&ui.input());
 							}
 						}
 					}
