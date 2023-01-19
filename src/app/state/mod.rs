@@ -118,7 +118,11 @@ impl State {
 		if let Some(cached) = self.cache.get(&path) {
 			let image = Rc::clone(cached);
 			let play_state = image.make_play_state();
-			let inner = OpenImageInner { play_state, image, zoom: Default::default() };
+			let inner = OpenImageInner {
+				play_state,
+				image,
+				zoom: Default::default(),
+			};
 			self.current = Some(OpenImage {
 				path,
 				inner: Ok(inner),
@@ -165,7 +169,11 @@ impl State {
 								use image::error::{ImageError, LimitError, LimitErrorKind};
 								ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
 							})?;
-						Ok(OpenImageInner { play_state, image, zoom: Default::default() })
+						Ok(OpenImageInner {
+							play_state,
+							image,
+							zoom: Default::default(),
+						})
 					});
 					self.current = Some(OpenImage { inner, path });
 				}
