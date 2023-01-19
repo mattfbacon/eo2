@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use egui::{Context, TextureFilter, TextureHandle};
+use egui::{Context, TextureHandle, TextureOptions};
 use image::{ImageFormat, ImageResult};
 use once_cell::sync::Lazy;
 
@@ -82,7 +82,7 @@ impl Image {
 					size: [width.try_into().unwrap(), height.try_into().unwrap()],
 					pixels: frame.into(),
 				},
-				TextureFilter::Linear,
+				TextureOptions::LINEAR,
 			)
 		})?;
 		Ok(image)

@@ -195,6 +195,17 @@ impl config::Background {
 	}
 }
 
+fn show_fullscreen_toggle(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+	let mut fullscreen = frame.info().window_info.fullscreen;
+	if ui
+		.toggle_value(&mut fullscreen, "⛶")
+		.on_hover_text("Toggle fullscreen")
+		.changed()
+	{
+		frame.set_fullscreen(fullscreen);
+	}
+}
+
 impl App {
 	fn show_actions_left(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		if let Some(current_path) = self.image_state.current_path() {
@@ -217,24 +228,13 @@ impl App {
 		}
 	}
 
-	fn show_fullscreen_toggle(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-		let mut fullscreen = frame.info().window_info.fullscreen;
-		if ui
-			.toggle_value(&mut fullscreen, "⛶")
-			.on_hover_text("Toggle fullscreen")
-			.changed()
-		{
-			frame.set_fullscreen(fullscreen);
-		}
-	}
-
 	fn show_actions_right(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
 		let mut trash_current = false;
 
 		ui.toggle_value(&mut self.settings_open, "⛭")
 			.on_hover_text("Toggle settings window");
 
-		self.show_fullscreen_toggle(ui, frame);
+		show_fullscreen_toggle(ui, frame);
 
 		self.config.light_dark_toggle_button(ui);
 
@@ -249,7 +249,7 @@ impl App {
 					.on_hover_text("Reset zoom")
 					.clicked()
 				{
-					inner.zoom = Default::default();
+					inner.zoom = crate::widgets::image::Zoom::default();
 				}
 
 				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")
@@ -289,10 +289,10 @@ impl App {
 				use egui::{Align, Layout};
 
 				ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-					self.show_actions_left(ui, frame)
+					self.show_actions_left(ui, frame);
 				});
 				ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-					self.show_actions_right(ui, frame)
+					self.show_actions_right(ui, frame);
 				});
 			});
 		});

@@ -122,7 +122,7 @@ impl State {
 			let inner = OpenImageInner {
 				play_state,
 				image,
-				zoom: Default::default(),
+				zoom: crate::widgets::image::Zoom::default(),
 			};
 			self.current = Some(OpenImage {
 				path,
@@ -173,7 +173,7 @@ impl State {
 						Ok(OpenImageInner {
 							play_state,
 							image,
-							zoom: Default::default(),
+							zoom: crate::widgets::image::Zoom::default(),
 						})
 					});
 					self.current = Some(OpenImage { inner, path });

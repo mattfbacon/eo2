@@ -10,8 +10,8 @@ az = "1"
 bytemuck = "1"
 clru = { version = "0.6.1" }
 directories-next = "2"
-eframe = { version = "0.19", features = ["serde"] }
-egui = "0.19"
+eframe = { version = "0.20", features = ["serde"] }
+egui = "0.20"
 figment = { version = "0.10", features = ["toml"] }
 humansize = "2"
 image = { version = "0.24", path = "image", features = [
