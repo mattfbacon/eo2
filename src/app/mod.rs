@@ -56,6 +56,20 @@ impl SlideshowState {
 	fn stop(&mut self) {
 		*self = Self::Inactive;
 	}
+
+	fn show_toggle(&mut self, ui: &mut egui::Ui, config: &Config) {
+		let mut slideshow_active = self.is_active();
+		let icon = if slideshow_active { "⏸" } else { "▶" };
+		let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
+
+		if changed {
+			if slideshow_active {
+				self.start(config);
+			} else {
+				self.stop();
+			}
+		}
+	}
 }
 
 pub struct App {
@@ -182,6 +196,73 @@ impl config::Background {
 }
 
 impl App {
+	fn show_actions_left(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+		if let Some(current_path) = self.image_state.current_path() {
+			let response =
+				ui.add(egui::Label::new(current_path.display().to_string()).sense(egui::Sense::click()));
+			let clicked = response.clicked();
+			let show_copied = ui.ctx().animate_bool_with_time(
+				response.id,
+				clicked,
+				ui.ctx().style().animation_time * 2.0,
+			) > 0.0;
+			response.on_hover_text(if show_copied {
+				"Copied!"
+			} else {
+				"Click to copy"
+			});
+			if clicked {
+				ui.output().copied_text = current_path.display().to_string();
+			}
+		}
+	}
+
+	fn show_fullscreen_toggle(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+		let mut fullscreen = frame.info().window_info.fullscreen;
+		if ui
+			.toggle_value(&mut fullscreen, "⛶")
+			.on_hover_text("Toggle fullscreen")
+			.changed()
+		{
+			frame.set_fullscreen(fullscreen);
+		}
+	}
+
+	fn show_actions_right(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+		let mut trash_current = false;
+
+		ui.toggle_value(&mut self.settings_open, "⛭")
+			.on_hover_text("Toggle settings window");
+
+		self.show_fullscreen_toggle(ui, frame);
+
+		self.config.light_dark_toggle_button(ui);
+
+		if let Some(current) = &mut self.image_state.current {
+			trash_current = ui.button("🗑").clicked();
+
+			self.slideshow.show_toggle(ui, &self.config);
+
+			if let Ok(inner) = &mut current.inner {
+				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")
+					.on_hover_text("Toggle sidebar");
+
+				if inner.image.is_animated() {
+					ui.toggle_value(&mut self.config.show_frames, "🎞")
+						.on_hover_text("Toggle frames");
+				}
+			}
+		}
+
+		if self.image_state.waiting() {
+			ui.spinner().on_hover_text("Loading");
+		}
+
+		if trash_current {
+			self.image_state.trash_current();
+		}
+	}
+
 	fn show_actions(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
 		let panel = {
 			let style = ctx.style();
@@ -195,90 +276,16 @@ impl App {
 			egui::TopBottomPanel::top("actions").frame(frame)
 		};
 
-		let left = |this: &mut Self, ui: &mut egui::Ui| {
-			if let Some(current_path) = this.image_state.current_path() {
-				let response =
-					ui.add(egui::Label::new(current_path.display().to_string()).sense(egui::Sense::click()));
-				let clicked = response.clicked();
-				let show_copied =
-					ctx.animate_bool_with_time(response.id, clicked, ctx.style().animation_time * 2.0) > 0.0;
-				response.on_hover_text(if show_copied {
-					"Copied!"
-				} else {
-					"Click to copy"
-				});
-				if clicked {
-					ui.output().copied_text = current_path.display().to_string();
-				}
-			}
-		};
-
-		let mut right = |this: &mut Self, ui: &mut egui::Ui| {
-			ui.toggle_value(&mut this.settings_open, "⛭")
-				.on_hover_text("Toggle settings window");
-
-			{
-				let mut fullscreen = frame.info().window_info.fullscreen;
-				if ui
-					.toggle_value(&mut fullscreen, "⛶")
-					.on_hover_text("Toggle fullscreen")
-					.changed()
-				{
-					frame.set_fullscreen(fullscreen);
-				}
-			}
-
-			this.config.light_dark_toggle_button(ui);
-
-			if this.image_state.current.is_some() {
-				if ui.button("🗑").clicked() {
-					this.image_state.trash_current();
-				}
-
-				let mut slideshow_active = this.slideshow.is_active();
-				let icon = if slideshow_active { "⏸" } else { "▶" };
-				let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
-
-				if changed {
-					if slideshow_active {
-						this.slideshow.start(&this.config);
-					} else {
-						this.slideshow.stop();
-					}
-				}
-			}
-
-			if this
-				.image_state
-				.current
-				.as_ref()
-				.map_or(false, |current| current.inner.is_ok())
-			{
-				ui.toggle_value(&mut this.config.show_sidebar, "ℹ")
-					.on_hover_text("Toggle sidebar");
-			}
-
-			if this.image_state.current.as_ref().map_or(false, |current| {
-				current
-					.inner
-					.as_ref()
-					.map_or(false, |inner| inner.image.is_animated())
-			}) {
-				ui.toggle_value(&mut this.config.show_frames, "🎞")
-					.on_hover_text("Toggle frames");
-			}
-
-			if this.image_state.waiting() {
-				ui.spinner().on_hover_text("Loading");
-			}
-		};
-
 		panel.show(ctx, |ui| {
 			ui.horizontal(|ui| {
 				use egui::{Align, Layout};
 
-				ui.with_layout(Layout::left_to_right(Align::Center), |ui| left(self, ui));
-				ui.with_layout(Layout::right_to_left(Align::Center), |ui| right(self, ui));
+				ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+					self.show_actions_left(ui, frame)
+				});
+				ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+					self.show_actions_right(ui, frame)
+				});
 			});
 		});
 	}
