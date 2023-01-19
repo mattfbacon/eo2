@@ -244,6 +244,14 @@ impl App {
 			self.slideshow.show_toggle(ui, &self.config);
 
 			if let Ok(inner) = &mut current.inner {
+				if ui
+					.add_enabled(inner.zoom.modified(), egui::Button::new("="))
+					.on_hover_text("Reset zoom")
+					.clicked()
+				{
+					inner.zoom = Default::default();
+				}
+
 				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")
 					.on_hover_text("Toggle sidebar");
 
@@ -431,9 +439,9 @@ impl App {
 			}) => {
 				ui.centered_and_justified(|ui| {
 					self.config.background.draw(ui.painter(), ui.max_rect());
-					match play_state {
+					let response = match play_state {
 						PlayState::Single => {
-							ui.add(widgets::Image::for_texture(&image.frames[0].0).zoom(*zoom));
+							ui.add(widgets::Image::for_texture(&image.frames[0].0).zoom(*zoom))
 						}
 						PlayState::Animated {
 							current_frame,
@@ -457,16 +465,11 @@ impl App {
 								);
 								ctx.request_repaint_after(current_frame.remaining.into());
 							}
+							response
 						}
-					}
-					{
-						let input = ui.input();
-						if let Some(pointer) = input.pointer.hover_pos() {
-							if ui.max_rect().contains(pointer) {
-								zoom.update_from_input(&ui.input());
-							}
-						}
-					}
+					};
+
+					zoom.update_from_response(&response);
 				});
 			}
 			Some(state::OpenImage {

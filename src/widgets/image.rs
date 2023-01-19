@@ -2,7 +2,7 @@ use egui::{Rect, Response, Sense, TextureHandle, TextureId, Ui, Vec2, Widget};
 
 use super::image_size;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Zoom {
 	/// 0, 0 = center
 	pub center: Vec2,
@@ -20,17 +20,32 @@ impl Default for Zoom {
 }
 
 impl Zoom {
+	fn zoom_factor(self) -> f32 {
+		2f32.powf(self.zoom)
+	}
+
 	fn apply(self, rect: Rect) -> Rect {
-		rect.expand2(rect.size() * self.zoom)
+		let center = rect.center() + self.center;
+		let size = rect.size() * self.zoom_factor();
+		Rect::from_center_size(center, size)
 	}
 
-	pub fn update_from_input(&mut self, input: &egui::InputState) {
-		self.zoom += input.scroll_delta.y * 0.01;
-		self.clamp();
+	pub fn update_from_response(&mut self, response: &Response) {
+		self.center += response.drag_delta();
+		if let Some(pointer) = response.hover_pos() {
+			let pointer = pointer - response.rect.center();
+			let old_zoom = self.zoom_factor();
+			self.zoom += response.ctx.input().scroll_delta.y * 0.01;
+			self.zoom = self.zoom.clamp(-3.0, 4.0);
+			let zoom_delta = self.zoom_factor() / old_zoom;
+			self.center -= pointer;
+			self.center *= zoom_delta;
+			self.center += pointer;
+		}
 	}
 
-	pub fn clamp(&mut self) {
-		self.zoom = self.zoom.clamp(-0.45, 10.0);
+	pub fn modified(self) -> bool {
+		self != Self::default()
 	}
 }
 
@@ -85,9 +100,9 @@ impl Image {
 
 	fn sense(&self) -> Sense {
 		if self.clickable {
-			Sense::click()
+			Sense::click_and_drag()
 		} else {
-			Sense::hover()
+			Sense::drag()
 		}
 	}
 }
@@ -96,7 +111,9 @@ impl Widget for Image {
 	fn ui(self, ui: &mut Ui) -> Response {
 		let (id, space) = ui.allocate_space(ui.available_size());
 		let sense = self.sense();
-		let image_rect = self.paint_at(ui, space);
-		ui.interact(image_rect, id, sense)
+		self.paint_at(ui, space);
+		// passing `space` for the interaction rect rather than the rect returned by `paint_at` so that the image can be zoomed/paused without the cursor necessarily being inside the actual image.
+		// this makes zoom behavior more friendly, as the user can continue zooming even if the image has become small enough that the cursor is now outside of it.
+		ui.interact(space, id, sense)
 	}
 }
