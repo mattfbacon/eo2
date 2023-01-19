@@ -1,3 +1,4 @@
+use std::hash::BuildHasherDefault;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -7,7 +8,7 @@ use std::task::Poll;
 use clru::{CLruCache, CLruCacheConfig};
 use egui::Context;
 use image::error::ImageResult;
-use xxhash_rust::xxh3::Xxh3Builder;
+use rustc_hash::FxHasher;
 
 use self::actor::{Actor, Response};
 use super::image::Image;
@@ -50,7 +51,7 @@ impl clru::WeightScale<PathBuf, Rc<Image>> for ImageSizeWeight {
 static ERRORS_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub struct State {
-	cache: CLruCache<PathBuf, Rc<Image>, Xxh3Builder, ImageSizeWeight>,
+	cache: CLruCache<PathBuf, Rc<Image>, BuildHasherDefault<FxHasher>, ImageSizeWeight>,
 	pub current: Option<OpenImage>,
 	navigation_mode: NavigationMode,
 	actor: Actor,
@@ -65,7 +66,7 @@ impl State {
 		Self {
 			cache: CLruCache::with_config(
 				CLruCacheConfig::new(cache_size)
-					.with_hasher(Xxh3Builder::new())
+					.with_hasher(BuildHasherDefault::default())
 					.with_scale(ImageSizeWeight),
 			),
 			current: None,
