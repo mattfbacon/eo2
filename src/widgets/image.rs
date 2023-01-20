@@ -41,7 +41,6 @@ impl Zoom {
 			let pointer = pointer - response.rect.center();
 			let old_zoom = self.zoom_factor();
 			self.zoom += response.ctx.input().scroll_delta.y * 0.01;
-			self.zoom = self.zoom.clamp(-3.0, 4.0);
 			let zoom_delta = self.zoom_factor() / old_zoom;
 			self.center -= pointer;
 			self.center *= zoom_delta;
