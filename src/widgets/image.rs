@@ -31,6 +31,11 @@ impl Zoom {
 	}
 
 	pub fn update_from_response(&mut self, response: &Response) {
+		if response.middle_clicked() {
+			*self = Self::default();
+			return;
+		}
+
 		self.center += response.drag_delta();
 		if let Some(pointer) = response.hover_pos() {
 			let pointer = pointer - response.rect.center();
