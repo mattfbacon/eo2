@@ -134,7 +134,9 @@ impl Config {
 	pub fn save(&self) -> std::io::Result<()> {
 		std::fs::write(
 			config_path(),
-			toml::to_vec(self).expect("serializing configuration"),
+			toml::to_string(self)
+				.expect("serializing configuration")
+				.as_bytes(),
 		)
 	}
 

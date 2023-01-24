@@ -385,7 +385,7 @@ checksum = "031718ddb8f78aa5def78a09e90defe30151d1f6c672f937af4dd916429ed996"
 dependencies = [
  "semver",
  "serde",
- "toml",
+ "toml 0.5.10",
  "url",
 ]
 
@@ -1048,7 +1048,7 @@ dependencies = [
  "serde",
  "thiserror",
  "time",
- "toml",
+ "toml 0.6.0",
 ]
 
 [[package]]
@@ -1144,12 +1144,11 @@ dependencies = [
 [[package]]
 name = "figment"
 version = "0.10.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e56602b469b2201400dec66a66aec5a9b8761ee97cd1b8c96ab2483fcc16cc9"
+source = "git+https://github.com/mattfbacon/Figment?rev=cfd3ce4ce06fa7809b53f925757d6120ea628f2a#cfd3ce4ce06fa7809b53f925757d6120ea628f2a"
 dependencies = [
  "atomic",
  "serde",
- "toml",
+ "toml 0.6.0",
  "uncased",
  "version_check",
 ]
@@ -1450,7 +1449,7 @@ dependencies = [
 [[package]]
 name = "image"
 version = "0.24.5"
-source = "git+https://github.com/mattfbacon/image#a5169404ce608a2477f20f430eec4b0d64a19b3d"
+source = "git+https://github.com/mattfbacon/image?rev=f97cefed83bcad8a93244e3c3a52e8fe0668cd8d#f97cefed83bcad8a93244e3c3a52e8fe0668cd8d"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -1476,6 +1475,16 @@ name = "imgref"
 version = "1.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2cf49df1085dcfb171460e4592597b84abe50d900fb83efb6e41b20fefd6c2c"
+
+[[package]]
+name = "indexmap"
+version = "1.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
+dependencies = [
+ "autocfg",
+ "hashbrown",
+]
 
 [[package]]
 name = "instant"
@@ -1798,7 +1807,7 @@ dependencies = [
 [[package]]
 name = "mp4parse"
 version = "0.16.0"
-source = "git+https://github.com/mozilla/mp4parse-rust#55eb92e478579cdd1faa2f41d38ca3c0f2513a31"
+source = "git+https://github.com/mozilla/mp4parse-rust?rev=aaad770a75b115931377b2b65e9b7a30812b77ed#aaad770a75b115931377b2b65e9b7a30812b77ed"
 dependencies = [
  "bitreader",
  "byteorder",
@@ -1929,6 +1938,15 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "nom8"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae01545c9c7fc4486ab7debaf2aad7003ac19431791868fb2e8066df97fad2f8"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -2199,7 +2217,7 @@ checksum = "eda0fc3b0fb7c975631757e14d9049da17374063edb6ebbcbc54d880d4fe94e9"
 dependencies = [
  "once_cell",
  "thiserror",
- "toml",
+ "toml 0.5.10",
 ]
 
 [[package]]
@@ -2557,6 +2575,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_spanned"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c68e921cef53841b8925c2abadd27c9b891d9613bdc43d6b823062866df38e8"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "servo-fontconfig"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2696,7 +2723,7 @@ dependencies = [
  "cfg-expr",
  "heck",
  "pkg-config",
- "toml",
+ "toml 0.5.10",
  "version-compare",
 ]
 
@@ -2835,6 +2862,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1333c76748e868a4d9d1017b5ab53171dfd095f70c712fdb4653a406547f598f"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "toml"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fb9d890e4dc9298b70f740f615f2e05b9db37dce531f6b24fb77ac993f9f217"
+dependencies = [
+ "serde",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_edit",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4553f467ac8e3d374bc9a177a26801e5d0f9b211aa1673fb137a403afd1c9cf5"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "729bfd096e40da9c001f778f5cdecbd2957929a24e10e5883d9392220a751581"
+dependencies = [
+ "indexmap",
+ "nom8",
+ "serde",
+ "serde_spanned",
+ "toml_datetime",
 ]
 
 [[package]]

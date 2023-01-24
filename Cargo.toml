@@ -21,7 +21,8 @@ rustc-hash = "1"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 time = { version = "0.3", features = ["macros", "formatting", "local-offset"] }
-toml = "0.5"
+toml = "0.6"
 
 [patch.crates-io]
 image = { git = "https://github.com/mattfbacon/image", rev = "f97cefed83bcad8a93244e3c3a52e8fe0668cd8d" }
+figment = { git = "https://github.com/mattfbacon/Figment", rev = "cfd3ce4ce06fa7809b53f925757d6120ea628f2a" }
