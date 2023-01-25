@@ -16,16 +16,38 @@ pub enum Direction {
 
 fn strip_common_prefix<'l, 'r>(left: &'l str, right: &'r str) -> (&'l str, &'r str) {
 	let num = left
-		.bytes()
-		.zip(right.bytes())
-		.take_while(|(l, r)| l == r)
-		.count();
+		.char_indices()
+		.zip(right.chars())
+		.find(|((_idx, l), r)| l != r)
+		.map(|((idx, _), _)| idx)
+		.unwrap_or(left.len().min(right.len()));
 	(&left[num..], &right[num..])
+}
+
+#[test]
+fn test_strip_common_prefix() {
+	use strip_common_prefix as s;
+
+	assert_eq!(s("a", "b"), ("a", "b"));
+	assert_eq!(s("a", "a"), ("", ""));
+	assert_eq!(s("a", "ab"), ("", "b"));
+	assert_eq!(s("ab", "a"), ("b", ""));
+	assert_eq!(s("gg😋", "gg😀"), ("😋", "😀"));
 }
 
 fn try_parse_number_prefix(s: &str) -> Option<u64> {
 	let num = s.bytes().take_while(u8::is_ascii_digit).count();
 	s[..num].parse().ok()
+}
+
+#[test]
+fn test_try_parse_number_prefix() {
+	use try_parse_number_prefix as t;
+
+	assert_eq!(t(""), None);
+	assert_eq!(t("123"), Some(123));
+	assert_eq!(t("123😋"), Some(123));
+	assert_eq!(t("1111111111111111111111111111111"), None);
 }
 
 fn human_compare(left: &str, right: &str) -> Ordering {
@@ -38,6 +60,17 @@ fn human_compare(left: &str, right: &str) -> Ordering {
 	} else {
 		left.cmp(right)
 	}
+}
+
+#[test]
+fn test_human_compare() {
+	use human_compare as h;
+
+	assert_eq!(h("a", "b"), Ordering::Less);
+	assert_eq!(h("aa", "a"), Ordering::Greater);
+	assert_eq!(h("abc123", "abc123"), Ordering::Equal);
+	assert_eq!(h("abc", "abc123"), Ordering::Less);
+	assert_eq!(h("test.dxt5", "test.jpg"), Ordering::Less);
 }
 
 impl SimpleDirection {
