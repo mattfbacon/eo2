@@ -150,14 +150,21 @@ impl State {
 		}
 	}
 
-	pub fn trash_current(&mut self) {
-		if let Some(path) = self.current_path() {
-			self.actor.trash_file(path.into());
-		}
+	pub fn delete_file(&mut self, file: PathBuf) {
+		// we only need to go to next if we're deleting what we're currently showing.
+		let should_go_to_next = self.current_path() == Some(&file);
+		self.actor.delete_file(file, should_go_to_next);
 	}
 
 	pub fn handle_actor_responses(&mut self) {
 		while let Some(response) = self.actor.poll_response() {
+			let response = match response {
+				Ok(response) => response,
+				Err(error) => {
+					self.push_error(error.to_string());
+					continue;
+				}
+			};
 			match response {
 				Response::LoadImage(path, loaded) => {
 					let inner = loaded.and_then(|image| {
@@ -179,17 +186,17 @@ impl State {
 					self.current = Some(OpenImage { inner, path });
 				}
 				Response::NextPath(next) => match next {
-					Ok(actor::NextPath::Some(next)) => self.open(next),
-					Ok(actor::NextPath::NoOthers) => (),
-					Ok(actor::NextPath::NoFilesAtAll) => {
+					actor::NextPath::Some(next) => self.open(next),
+					actor::NextPath::NoOthers => (),
+					actor::NextPath::NoFilesAtAll => {
 						// not using `current_path` due to borrow granularity
 						if let Some(current) = &self.current {
 							_ = self.cache.pop(&current.path);
 						}
 						self.current = None;
 					}
-					Err(error) => self.push_error(error.to_string()),
 				},
+				Response::NoOp => (),
 			}
 		}
 	}

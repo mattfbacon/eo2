@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use ::image::ImageFormat;
 use eframe::CreationContext;
 use egui::style::Margin;
@@ -77,6 +79,7 @@ pub struct App {
 	image_state: ImageState,
 	settings_open: bool,
 	internal_open: bool,
+	asking_to_delete: Option<PathBuf>,
 	slideshow: SlideshowState,
 }
 
@@ -96,6 +99,7 @@ impl App {
 			image_state: ImageState::new(cc.egui_ctx.clone(), cache_size, navigation_mode),
 			settings_open: false,
 			internal_open: false,
+			asking_to_delete: None,
 			slideshow: SlideshowState::default(),
 		};
 
@@ -229,7 +233,7 @@ impl App {
 	}
 
 	fn show_actions_right(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-		let mut trash_current = false;
+		let mut to_delete = None;
 
 		ui.toggle_value(&mut self.settings_open, "⛭")
 			.on_hover_text("Toggle settings window");
@@ -239,7 +243,9 @@ impl App {
 		self.config.light_dark_toggle_button(ui);
 
 		if let Some(current) = &mut self.image_state.current {
-			trash_current = ui.button("🗑").clicked();
+			let delete_button = ui.button("🗑");
+			to_delete = delete_button.clicked().then(|| current.path.clone());
+			delete_button.on_hover_text("Delete File");
 
 			self.slideshow.show_toggle(ui, &self.config);
 
@@ -266,8 +272,17 @@ impl App {
 			ui.spinner().on_hover_text("Loading");
 		}
 
-		if trash_current {
-			self.image_state.trash_current();
+		if let Some(to_delete) = to_delete {
+			self.delete_file(&ui, to_delete);
+		}
+	}
+
+	fn delete_file(&mut self, ui: &egui::Ui, path: PathBuf) {
+		if ui.input().modifiers.shift {
+			self.asking_to_delete = None;
+			self.image_state.delete_file(path);
+		} else {
+			self.asking_to_delete = Some(path);
 		}
 	}
 
@@ -504,6 +519,40 @@ impl App {
 		});
 	}
 
+	fn show_asking_to_delete(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+		if self.asking_to_delete.is_none() {
+			return;
+		}
+
+		let mut open = true;
+		let window = egui::Window::new("Delete File?")
+			.open(&mut open)
+			.resizable(false)
+			.collapsible(true);
+		window.show(ctx, |ui| {
+			ui.label(format!(
+				"Delete {:?}?",
+				self.asking_to_delete.as_ref().unwrap()
+			));
+			ui.allocate_ui_with_layout(
+				Vec2::new(ui.max_rect().width(), 0.0),
+				egui::Layout::right_to_left(egui::Align::BOTTOM),
+				|ui| {
+					if ui.button("Cancel").clicked() {
+						self.asking_to_delete = None;
+					}
+					if ui.button("Delete").clicked() {
+						let to_delete = self.asking_to_delete.take().unwrap();
+						self.image_state.delete_file(to_delete);
+					}
+				},
+			);
+		});
+		if !open {
+			self.asking_to_delete = None;
+		}
+	}
+
 	fn handle_global_keys(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		use egui::Key;
 
@@ -557,6 +606,8 @@ impl eframe::App for App {
 
 		self.show_settings(ctx, frame);
 		self.show_internal(ctx, frame);
+		self.show_asking_to_delete(ctx, frame);
+
 		self.show_actions(ctx, frame);
 		self.show_sidebar(ctx, frame);
 		self.show_frames(ctx, frame);

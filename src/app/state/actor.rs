@@ -13,7 +13,10 @@ use crate::app::next_path::{next_path, Direction as NextPathDirection};
 enum Command {
 	LoadImage(PathBuf),
 	NextPath(PathBuf, NextPathDirection),
-	TrashFile(PathBuf),
+	DeleteFile {
+		path: PathBuf,
+		should_go_to_next: bool,
+	},
 }
 
 pub enum NextPath {
@@ -22,11 +25,10 @@ pub enum NextPath {
 	NoFilesAtAll,
 }
 
-/// Variants in `Response` are named according to their corresponding `Command`, except where otherwise noted.
 pub enum Response {
 	LoadImage(PathBuf, ImageResult<image::Image>),
-	/// This variant is used for the `ToTrash` command.
-	NextPath(io::Result<NextPath>),
+	NextPath(NextPath),
+	NoOp,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -37,7 +39,7 @@ pub enum SendResult {
 
 pub struct Actor {
 	command_sender: mpsc::SyncSender<Command>,
-	response_receiver: mpsc::Receiver<Response>,
+	response_receiver: mpsc::Receiver<io::Result<Response>>,
 	waiting: bool,
 }
 
@@ -58,7 +60,7 @@ impl Actor {
 		self.waiting
 	}
 
-	pub fn poll_response(&mut self) -> Option<Response> {
+	pub fn poll_response(&mut self) -> Option<io::Result<Response>> {
 		match self.response_receiver.try_recv() {
 			Ok(response) => {
 				self.waiting = false;
@@ -89,37 +91,49 @@ impl Actor {
 		self.send(Command::NextPath(path, direction))
 	}
 
-	pub fn trash_file(&mut self, path: PathBuf) -> SendResult {
-		self.send(Command::TrashFile(path))
+	pub fn delete_file(&mut self, path: PathBuf, should_go_to_next: bool) -> SendResult {
+		self.send(Command::DeleteFile {
+			path,
+			should_go_to_next,
+		})
 	}
 }
 
 fn in_thread(
 	egui_ctx: &egui::Context,
 	command_receiver: &mpsc::Receiver<Command>,
-	response_sender: &mpsc::SyncSender<Response>,
+	response_sender: &mpsc::SyncSender<io::Result<Response>>,
 ) {
 	while let Ok(command) = command_receiver.recv() {
-		let response = match command {
-			Command::LoadImage(path) => {
-				let loaded = load_image(egui_ctx, &path);
-				Response::LoadImage(path, loaded)
-			}
-			Command::NextPath(current_path, direction) => Response::NextPath(
-				next_path(&current_path, direction)
-					.map(|opt_path| opt_path.map_or(NextPath::NoOthers, NextPath::Some)),
-			),
-			Command::TrashFile(current_path) => Response::NextPath(to_trash(&current_path)),
-		};
+		let response = run_command(command, egui_ctx);
 		response_sender.send(response).unwrap();
 		egui_ctx.request_repaint();
 	}
 }
 
-fn to_trash(current_path: &Path) -> io::Result<NextPath> {
-	std::fs::remove_file(current_path)?;
-	next_path(current_path, NextPathDirection::RIGHT)
-		.map(|opt_path| opt_path.map_or(NextPath::NoFilesAtAll, NextPath::Some))
+fn run_command(command: Command, egui_ctx: &egui::Context) -> io::Result<Response> {
+	Ok(match command {
+		Command::LoadImage(path) => {
+			let loaded = load_image(egui_ctx, &path);
+			Response::LoadImage(path, loaded)
+		}
+		Command::NextPath(current_path, direction) => {
+			let next_path = next_path(&current_path, direction)?;
+			Response::NextPath(next_path.map_or(NextPath::NoOthers, NextPath::Some))
+		}
+		Command::DeleteFile {
+			path,
+			should_go_to_next,
+		} => {
+			std::fs::remove_file(&path)?;
+			if should_go_to_next {
+				let next_path = next_path(&path, NextPathDirection::RIGHT)?;
+				Response::NextPath(next_path.map_or(NextPath::NoFilesAtAll, NextPath::Some))
+			} else {
+				Response::NoOp
+			}
+		}
+	})
 }
 
 fn load_image(egui_ctx: &egui::Context, path: &Path) -> ImageResult<image::Image> {
