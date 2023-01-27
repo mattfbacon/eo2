@@ -273,7 +273,7 @@ impl App {
 		}
 
 		if let Some(to_delete) = to_delete {
-			self.delete_file(&ui, to_delete);
+			self.delete_file(ui, to_delete);
 		}
 	}
 

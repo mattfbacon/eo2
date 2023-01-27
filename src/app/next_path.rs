@@ -19,8 +19,7 @@ fn strip_common_prefix<'l, 'r>(left: &'l str, right: &'r str) -> (&'l str, &'r s
 		.char_indices()
 		.zip(right.chars())
 		.find(|((_idx, l), r)| l != r)
-		.map(|((idx, _), _)| idx)
-		.unwrap_or(left.len().min(right.len()));
+		.map_or_else(|| left.len().min(right.len()), |((idx, _), _)| idx);
 	(&left[num..], &right[num..])
 }
 
