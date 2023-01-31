@@ -15,7 +15,6 @@
 	unused_qualifications
 )]
 #![warn(clippy::pedantic)]
-#![allow(clippy::let_underscore_drop)]
 #![forbid(unsafe_code)]
 
 mod app;

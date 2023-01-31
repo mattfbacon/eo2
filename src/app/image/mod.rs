@@ -38,6 +38,7 @@ impl Metadata {
 	}
 }
 
+#[derive(Debug)]
 pub struct Image<FrameType = TextureHandle> {
 	pub format: ImageFormat,
 	pub width: u32,

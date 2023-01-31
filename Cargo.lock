@@ -1036,6 +1036,7 @@ dependencies = [
  "az",
  "bytemuck",
  "clru",
+ "crossbeam-channel",
  "directories-next",
  "eframe",
  "egui",

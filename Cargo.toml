@@ -9,6 +9,7 @@ argh = "0.1"
 az = "1"
 bytemuck = "1"
 clru = { version = "0.6.1" }
+crossbeam-channel = "0.5"
 directories-next = "2"
 eframe = { version = "0.20", features = ["serde"] }
 egui = "0.20"

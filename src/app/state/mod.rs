@@ -1,60 +1,33 @@
-use std::hash::BuildHasherDefault;
 use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::task::Poll;
+use std::sync::Arc;
 
-use clru::{CLruCache, CLruCacheConfig};
 use egui::Context;
 use image::error::ImageResult;
-use rustc_hash::FxHasher;
 
-use self::actor::{Actor, Response};
+use self::actor::{LoadedImage, NavigationMode, NextPath, Response};
 use super::image::Image;
-use crate::app::next_path::Direction as NextPathDirection;
 
 pub mod actor;
 pub mod play;
 
 pub struct OpenImageInner {
 	pub play_state: play::State,
-	pub image: Rc<Image>,
+	pub image: Arc<Image>,
 	pub zoom: crate::widgets::image::Zoom,
 }
 
 pub struct OpenImage {
 	pub inner: ImageResult<OpenImageInner>,
-	pub path: PathBuf,
-}
-
-#[derive(Debug)]
-pub enum NavigationMode {
-	InDirectory,
-	Specified { paths: Vec<PathBuf>, current: usize },
-}
-
-impl NavigationMode {
-	pub fn specified(paths: Vec<PathBuf>) -> Self {
-		Self::Specified { paths, current: 0 }
-	}
-}
-
-struct ImageSizeWeight;
-
-impl clru::WeightScale<PathBuf, Rc<Image>> for ImageSizeWeight {
-	fn weight(&self, _path: &PathBuf, image: &Rc<Image>) -> usize {
-		image.size_in_memory()
-	}
+	pub path: Arc<Path>,
 }
 
 static ERRORS_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub struct State {
-	cache: CLruCache<PathBuf, Rc<Image>, BuildHasherDefault<FxHasher>, ImageSizeWeight>,
 	pub current: Option<OpenImage>,
-	navigation_mode: NavigationMode,
-	actor: Actor,
+	actor: actor::Handle,
 	errors: Vec<(egui::Id, String)>,
 }
 
@@ -64,14 +37,8 @@ pub struct ErrorAcknowledged;
 impl State {
 	pub fn new(egui_ctx: Context, cache_size: NonZeroUsize, navigation_mode: NavigationMode) -> Self {
 		Self {
-			cache: CLruCache::with_config(
-				CLruCacheConfig::new(cache_size)
-					.with_hasher(BuildHasherDefault::default())
-					.with_scale(ImageSizeWeight),
-			),
 			current: None,
-			navigation_mode,
-			actor: Actor::spawn(egui_ctx),
+			actor: actor::Handle::spawn(egui_ctx, navigation_mode, cache_size),
 			errors: Vec::new(),
 		}
 	}
@@ -115,45 +82,12 @@ impl State {
 		self.current.as_ref().map(|open| &*open.path)
 	}
 
-	pub fn open(&mut self, path: PathBuf) {
-		if let Some(cached) = self.cache.get(&path) {
-			let image = Rc::clone(cached);
-			let play_state = image.make_play_state();
-			let inner = OpenImageInner {
-				play_state,
-				image,
-				zoom: crate::widgets::image::Zoom::default(),
-			};
-			self.current = Some(OpenImage {
-				path,
-				inner: Ok(inner),
-			});
-		} else {
-			self.actor.load_image(path);
-		}
+	pub fn next_path(&mut self, args: NextPath) {
+		self.actor.next_path(args);
 	}
 
-	#[must_use = "must handle the Poll::Ready variant eagerly"]
-	pub fn next_path(&mut self, direction: NextPathDirection) -> Poll<PathBuf> {
-		match &mut self.navigation_mode {
-			NavigationMode::InDirectory => {
-				if let Some(path) = self.current_path() {
-					self.actor.next_path(path.into(), direction);
-				}
-				Poll::Pending
-			}
-			NavigationMode::Specified { paths, current } => {
-				*current = direction.step(*current, paths.len());
-				let next_path = paths[*current].clone();
-				Poll::Ready(next_path)
-			}
-		}
-	}
-
-	pub fn delete_file(&mut self, file: PathBuf) {
-		// we only need to go to next if we're deleting what we're currently showing.
-		let should_go_to_next = self.current_path() == Some(&file);
-		self.actor.delete_file(file, should_go_to_next);
+	pub fn delete_file(&mut self, file: Arc<Path>) {
+		self.actor.delete_file(file);
 	}
 
 	pub fn handle_actor_responses(&mut self) {
@@ -166,130 +100,19 @@ impl State {
 				}
 			};
 			match response {
-				Response::LoadImage(path, loaded) => {
-					let inner = loaded.and_then(|image| {
+				Response::LoadImage(LoadedImage { path, image }) => {
+					let inner = image.map(|image| {
 						let play_state = image.make_play_state();
-						let image = Rc::new(image);
-						self
-							.cache
-							.put_with_weight(path.clone(), Rc::clone(&image))
-							.map_err(|_| {
-								use image::error::{ImageError, LimitError, LimitErrorKind};
-								ImageError::Limits(LimitError::from_kind(LimitErrorKind::InsufficientMemory))
-							})?;
-						Ok(OpenImageInner {
+						OpenImageInner {
 							play_state,
 							image,
 							zoom: crate::widgets::image::Zoom::default(),
-						})
+						}
 					});
 					self.current = Some(OpenImage { inner, path });
 				}
-				Response::NextPath(next) => match next {
-					actor::NextPath::Some(next) => self.open(next),
-					actor::NextPath::NoOthers => (),
-					actor::NextPath::NoFilesAtAll => {
-						// not using `current_path` due to borrow granularity
-						if let Some(current) = &self.current {
-							_ = self.cache.pop(&current.path);
-						}
-						self.current = None;
-					}
-				},
 				Response::NoOp => (),
 			}
 		}
-	}
-
-	pub fn internal_ui(&mut self, ui: &mut egui::Ui) {
-		use crate::widgets::KeyValue;
-
-		KeyValue::new("image-state-internal-kv").show(ui, |mut rows| {
-			rows.sub("image-state-internal-cache-kv", "Cache", |mut rows| {
-				rows.row("Size", |ui| {
-					ui.label(humansize::format_size(
-						self.cache.weight(),
-						humansize::DECIMAL,
-					));
-				});
-				rows.row("Limit", |ui| {
-					ui.label(humansize::format_size(
-						self.cache.capacity(),
-						humansize::DECIMAL,
-					));
-				});
-				rows.row("Entries", |ui| {
-					ui.vertical(|ui| {
-						ui.label(self.cache.len().to_string());
-						ui.collapsing("The entries (LRU order)", |ui| {
-							egui::ScrollArea::vertical().show_rows(
-								ui,
-								egui::style::TextStyle::Body.resolve(ui.style()).size,
-								self.cache.len(),
-								|ui, range| {
-									let std::ops::Range { start, end } = range;
-									for (idx, (path, entry)) in
-										range.zip(self.cache.iter().skip(start).take(end - start))
-									{
-										ui.label(format!(
-											"{}. {:?}, {}x{}, {}, {} frames",
-											idx + 1,
-											path,
-											entry.width,
-											entry.height,
-											humansize::format_size(entry.size_in_memory(), humansize::DECIMAL),
-											entry.frames.len()
-										));
-									}
-								},
-							);
-						});
-					});
-				});
-				rows.row("Empty", |ui| {
-					if ui.button("Empty").clicked() {
-						self.cache.clear();
-					}
-				});
-			});
-			rows.row("Nav Mode", |ui| {
-				ui.vertical(|ui| match &self.navigation_mode {
-					NavigationMode::InDirectory => match self.current_path() {
-						Some(path) => {
-							ui.label(format!("All images in {path:?}"));
-						}
-						None => {
-							ui.label("N/A, no images");
-						}
-					},
-					NavigationMode::Specified { paths, current } => {
-						ui.label(format!(
-							"{} out of {} specified paths",
-							current + 1,
-							paths.len()
-						));
-						ui.collapsing("The paths", |ui| {
-							egui::ScrollArea::vertical().show_rows(
-								ui,
-								egui::style::TextStyle::Body.resolve(ui.style()).size,
-								paths.len(),
-								|ui, range| {
-									for idx in range {
-										ui.label(format!("{}. {:?}", idx + 1, paths[idx]));
-									}
-								},
-							);
-						});
-					}
-				});
-			});
-			rows.row("Actor", |ui| {
-				ui.label(if self.actor.waiting() {
-					"Waiting"
-				} else {
-					"Ready"
-				});
-			});
-		});
 	}
 }

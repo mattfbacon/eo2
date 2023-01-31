@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::path::Path;
+use std::sync::Arc;
 
 use ::image::ImageFormat;
 use eframe::CreationContext;
@@ -6,9 +7,9 @@ use egui::style::Margin;
 use egui::{Color32, Context, Frame, Painter, Rect, Rounding, Vec2};
 
 pub use self::image::init_timezone;
-use self::next_path::Direction as NextPathDirection;
+use self::state::actor::{NavigationMode, NextPath};
 use self::state::play::State as PlayState;
-use self::state::{NavigationMode, State as ImageState};
+use self::state::State as ImageState;
 use crate::args::Args;
 use crate::config::Config;
 use crate::duration::Duration;
@@ -79,35 +80,31 @@ pub struct App {
 	image_state: ImageState,
 	settings_open: bool,
 	internal_open: bool,
-	asking_to_delete: Option<PathBuf>,
+	asking_to_delete: Option<Arc<Path>>,
 	slideshow: SlideshowState,
 }
 
 impl App {
 	#[allow(clippy::needless_pass_by_value)] // consistency
 	pub fn new(Args { paths }: Args, config: Config, cc: &CreationContext<'_>) -> Self {
-		let (first_path, navigation_mode) = if paths.len() >= 2 {
-			(Some(paths[0].clone()), NavigationMode::specified(paths))
-		} else {
-			(paths.into_iter().next(), NavigationMode::InDirectory)
+		let navigation_mode = match paths.len() {
+			0 => NavigationMode::Empty,
+			1 => NavigationMode::InDirectory {
+				current: paths.into_iter().next().unwrap(),
+			},
+			_ => NavigationMode::specified(paths),
 		};
 
 		let cache_size = config.cache_size;
 
-		let mut ret = Self {
+		Self {
 			config,
 			image_state: ImageState::new(cc.egui_ctx.clone(), cache_size, navigation_mode),
 			settings_open: false,
 			internal_open: false,
 			asking_to_delete: None,
 			slideshow: SlideshowState::default(),
-		};
-
-		if let Some(first_path) = first_path {
-			ret.image_state.open(first_path);
 		}
-
-		ret
 	}
 }
 
@@ -277,7 +274,7 @@ impl App {
 		}
 	}
 
-	fn delete_file(&mut self, ui: &egui::Ui, path: PathBuf) {
+	fn delete_file(&mut self, ui: &egui::Ui, path: Arc<Path>) {
 		if ui.input().modifiers.shift {
 			self.asking_to_delete = None;
 			self.image_state.delete_file(path);
@@ -418,7 +415,7 @@ impl App {
 
 		if next_from_slideshow {
 			if self.config.slideshow.shuffle {
-				self.move_in(NextPathDirection::Random);
+				self.move_in(NextPath::RANDOM);
 			} else {
 				self.move_right();
 			}
@@ -431,7 +428,10 @@ impl App {
 
 	fn show_central(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		let panel = {
-			let margin = if let Some(state::OpenImage { inner: Ok(..), .. }) = &self.image_state.current {
+			let margin = if matches!(
+				self.image_state.current,
+				Some(state::OpenImage { inner: Ok(..), .. })
+			) {
 				0.0
 			} else {
 				8.0
@@ -508,17 +508,6 @@ impl App {
 		});
 	}
 
-	fn show_internal(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-		let window = egui::Window::new("Internal State")
-			.open(&mut self.internal_open)
-			.resizable(false)
-			.collapsible(true)
-			.default_width(600.0);
-		window.show(ctx, |ui| {
-			self.image_state.internal_ui(ui);
-		});
-	}
-
 	fn show_asking_to_delete(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		if self.asking_to_delete.is_none() {
 			return;
@@ -572,21 +561,16 @@ impl App {
 		}
 	}
 
-	fn move_in(&mut self, direction: NextPathDirection) {
-		use std::task::Poll;
-
-		match self.image_state.next_path(direction) {
-			Poll::Ready(path) => self.image_state.open(path),
-			Poll::Pending => { /* will be handled by handle_actor_responses */ }
-		}
+	fn move_in(&mut self, direction: NextPath) {
+		self.image_state.next_path(direction);
 	}
 
 	fn move_right(&mut self) {
-		self.move_in(NextPathDirection::RIGHT);
+		self.move_in(NextPath::RIGHT);
 	}
 
 	fn move_left(&mut self) {
-		self.move_in(NextPathDirection::LEFT);
+		self.move_in(NextPath::LEFT);
 	}
 
 	fn handle_actor_responses(&mut self) {
@@ -605,7 +589,6 @@ impl eframe::App for App {
 		self.image_state.show_errors(ctx);
 
 		self.show_settings(ctx, frame);
-		self.show_internal(ctx, frame);
 		self.show_asking_to_delete(ctx, frame);
 
 		self.show_actions(ctx, frame);

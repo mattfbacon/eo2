@@ -42,6 +42,7 @@ impl Rows<'_> {
 		ui.end_row();
 	}
 
+	/*
 	pub fn sub<R>(
 		&mut self,
 		id: &str,
@@ -50,6 +51,7 @@ impl Rows<'_> {
 	) -> InnerResponse<InnerResponse<R>> {
 		self.row(key, |ui| KeyValue::new(id).show(ui, sub))
 	}
+	*/
 }
 
 impl KeyValue {
