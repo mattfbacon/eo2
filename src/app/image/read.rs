@@ -1,4 +1,4 @@
-use std::io::{BufRead, Seek, SeekFrom};
+use std::io::{BufRead, Seek};
 use std::path::Path;
 
 use egui::Color32;
@@ -179,7 +179,7 @@ pub fn read<OutFrameType>(
 		ImageError::Unsupported(ImageFormatHint::PathExtension(path.to_owned()).into())
 	})?;
 	let mut reader = reader.into_inner();
-	reader.seek(SeekFrom::Start(0))?;
+	reader.rewind()?;
 	load_decoder(
 		reader,
 		format,
