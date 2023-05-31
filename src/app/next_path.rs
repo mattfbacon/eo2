@@ -21,51 +21,113 @@ pub struct NextPath {
 	pub mode: Mode,
 }
 
-fn strip_common_prefix<'l, 'r>(left: &'l str, right: &'r str) -> (&'l str, &'r str) {
-	let num = left
-		.char_indices()
-		.zip(right.chars())
-		.find(|((_idx, l), r)| l != r)
-		.map_or_else(|| left.len().min(right.len()), |((idx, _), _)| idx);
-	(&left[num..], &right[num..])
+#[derive(Debug)]
+struct Chunk<'a> {
+	number: Option<u32>,
+	string: &'a str,
+}
+
+impl Ord for Chunk<'_> {
+	fn cmp(&self, other: &Self) -> Ordering {
+		match (self.number, other.number) {
+			(Some(a), Some(b)) => a.cmp(&b),
+			_ => self.string.cmp(other.string),
+		}
+	}
+}
+
+impl<'a, 'b> PartialOrd<Chunk<'b>> for Chunk<'a> {
+	fn partial_cmp(&self, other: &Chunk<'b>) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Eq for Chunk<'_> {}
+
+impl<'a, 'b> PartialEq<Chunk<'b>> for Chunk<'a> {
+	fn eq(&self, other: &Chunk<'b>) -> bool {
+		self.cmp(other).is_eq()
+	}
+}
+
+fn chunks(s: &str) -> impl Iterator<Item = Chunk<'_>> {
+	let mut want_num_chunk = false;
+	let mut rest = s;
+
+	std::iter::from_fn(move || loop {
+		if rest.is_empty() {
+			break None;
+		}
+
+		let chunk_end = rest
+			.find(|ch: char| ch.is_ascii_digit() ^ want_num_chunk)
+			.unwrap_or(rest.len());
+
+		want_num_chunk = !want_num_chunk;
+
+		let chunk = &rest[..chunk_end];
+		if chunk.is_empty() {
+			continue;
+		}
+
+		rest = &rest[chunk_end..];
+
+		break Some(Chunk {
+			number: chunk.parse().ok(),
+			string: chunk,
+		});
+	})
 }
 
 #[test]
-fn test_strip_common_prefix() {
-	use strip_common_prefix as s;
-
-	assert_eq!(s("a", "b"), ("a", "b"));
-	assert_eq!(s("a", "a"), ("", ""));
-	assert_eq!(s("a", "ab"), ("", "b"));
-	assert_eq!(s("ab", "a"), ("b", ""));
-	assert_eq!(s("gg😋", "gg😀"), ("😋", "😀"));
-}
-
-fn try_parse_number_prefix(s: &str) -> Option<u64> {
-	let num = s.bytes().take_while(u8::is_ascii_digit).count();
-	s[..num].parse().ok()
-}
-
-#[test]
-fn test_try_parse_number_prefix() {
-	use try_parse_number_prefix as t;
-
-	assert_eq!(t(""), None);
-	assert_eq!(t("123"), Some(123));
-	assert_eq!(t("123😋"), Some(123));
-	assert_eq!(t("1111111111111111111111111111111"), None);
+fn test_chunks() {
+	assert_eq!(
+		chunks("abc123").collect::<Vec<_>>(),
+		[
+			Chunk {
+				number: None,
+				string: "abc",
+			},
+			Chunk {
+				number: Some(123),
+				string: "123",
+			},
+		],
+	);
+	assert_eq!(
+		chunks("123abc").collect::<Vec<_>>(),
+		[
+			Chunk {
+				number: Some(123),
+				string: "123",
+			},
+			Chunk {
+				number: None,
+				string: "abc",
+			},
+		],
+	);
+	assert_eq!(
+		chunks("abc999999999999def").collect::<Vec<_>>(),
+		[
+			Chunk {
+				number: None,
+				string: "abc",
+			},
+			Chunk {
+				number: None,
+				string: "999999999999",
+			},
+			Chunk {
+				number: None,
+				string: "def",
+			},
+		],
+	);
 }
 
 fn human_compare(left: &str, right: &str) -> Ordering {
-	let (left, right) = strip_common_prefix(left, right);
-	if let (Some(left), Some(right)) = (
-		try_parse_number_prefix(left),
-		try_parse_number_prefix(right),
-	) {
-		left.cmp(&right)
-	} else {
-		left.cmp(right)
-	}
+	chunks(left).cmp(chunks(right))
 }
 
 #[test]
@@ -77,6 +139,9 @@ fn test_human_compare() {
 	assert_eq!(h("abc123", "abc123"), Ordering::Equal);
 	assert_eq!(h("abc", "abc123"), Ordering::Less);
 	assert_eq!(h("test.dxt5", "test.jpg"), Ordering::Less);
+	// #16
+	assert_eq!(h("11", "100"), Ordering::Less);
+	assert_eq!(h("a11", "a100"), Ordering::Less);
 }
 
 impl Direction {
