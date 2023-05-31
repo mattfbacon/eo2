@@ -87,7 +87,7 @@ impl Image {
 	pub fn paint_at(self, ui: &mut Ui, available_rect: Rect) -> Rect {
 		// Create a child UI so we can set the clip of the painter
 		let mut ui = ui.child_ui(available_rect, *ui.layout());
-		ui.set_clip_rect(available_rect);
+		ui.set_clip_rect(available_rect.intersect(ui.clip_rect()));
 
 		let available_size = available_rect.size();
 		let scaled_size = image_size(self.actual_size, available_size);
