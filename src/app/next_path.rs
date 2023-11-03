@@ -300,7 +300,9 @@ fn test_find_next_impl() {
 	}
 
 	for (current_idx, chunk) in FILES.windows(2).enumerate() {
-		let &[current, next] = chunk else { unreachable!(); };
+		let &[current, next] = chunk else {
+			unreachable!();
+		};
 		assert_eq!(
 			find_next_impl(Direction::Right, current, files(), &NoKey),
 			Some((next.into(), current_idx + 1)),
@@ -312,7 +314,9 @@ fn test_find_next_impl() {
 	);
 
 	for (prev_idx, chunk) in FILES.windows(2).enumerate().rev() {
-		let &[prev, current] = chunk else { unreachable!(); };
+		let &[prev, current] = chunk else {
+			unreachable!();
+		};
 		assert_eq!(
 			find_next_impl(Direction::Left, current, files(), &NoKey),
 			Some((prev.into(), prev_idx))

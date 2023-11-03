@@ -282,7 +282,9 @@ impl Actor {
 	}
 
 	fn next_path(&mut self, args: NextPath) -> io::Result<Response> {
-		let Some(next_path) = self.state.next_path(args)? else { return Ok(Response::NoOp); };
+		let Some(next_path) = self.state.next_path(args)? else {
+			return Ok(Response::NoOp);
+		};
 		let next_path = Arc::clone(next_path);
 		Ok(self.load_image(next_path))
 	}

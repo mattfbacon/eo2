@@ -315,7 +315,13 @@ impl App {
 			return;
 		}
 
-		let Some(state::OpenImage { inner: Ok(state::OpenImageInner { image, .. }), .. }) = &self.image_state.current else { return };
+		let Some(state::OpenImage {
+			inner: Ok(state::OpenImageInner { image, .. }),
+			..
+		}) = &self.image_state.current
+		else {
+			return;
+		};
 
 		egui::SidePanel::right("properties").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
@@ -347,17 +353,21 @@ impl App {
 			return;
 		}
 
-		let Some(state::OpenImage { inner: Ok(
-				state::OpenImageInner {
-				play_state: PlayState::Animated {
-					current_frame,
-					playing,
-				},
-				image,
-				..
-				}
-			)
-				, ..}) = &mut self.image_state.current else { return; };
+		let Some(state::OpenImage {
+			inner:
+				Ok(state::OpenImageInner {
+					play_state: PlayState::Animated {
+						current_frame,
+						playing,
+					},
+					image,
+					..
+				}),
+			..
+		}) = &mut self.image_state.current
+		else {
+			return;
+		};
 		let frames = &image.frames;
 
 		let outer_frame_size = Vec2::splat(100.0); // XXX 100 is arbitrary; make it configurable?
