@@ -8,7 +8,7 @@ Aims to provide all the features that I personally want.
 
 - Slideshow
 	- Uses natural ordering, meaning numbered files are ordered properly even without zero-padding.
-	- Random mode
+	- Random mode, which is deterministic based on seeded hashing
 - Animated images
 	- Frames menu
 - Zoom and panning
