@@ -3,8 +3,6 @@ use std::path::PathBuf;
 
 use eframe::Theme;
 use egui::ComboBox;
-use figment::providers::{Format as _, Toml};
-use figment::Figment;
 use serde::{Deserialize, Serialize};
 
 use crate::duration::Duration;
@@ -127,8 +125,9 @@ impl Background {
 }
 
 impl Config {
-	pub fn load() -> figment::error::Result<Self> {
-		Figment::new().merge(Toml::file(config_path())).extract()
+	pub fn load() -> Result<Self, crate::error::Stringed> {
+		let raw = std::fs::read_to_string(config_path())?;
+		Ok(toml::from_str(&raw)?)
 	}
 
 	pub fn save(&self) -> std::io::Result<()> {
@@ -174,6 +173,6 @@ impl Config {
 	}
 }
 
-pub fn load() -> figment::error::Result<Config> {
+pub fn load() -> Result<Config, crate::error::Stringed> {
 	Config::load()
 }
