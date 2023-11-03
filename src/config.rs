@@ -131,12 +131,8 @@ impl Config {
 	}
 
 	pub fn save(&self) -> std::io::Result<()> {
-		std::fs::write(
-			config_path(),
-			toml::to_string(self)
-				.expect("serializing configuration")
-				.as_bytes(),
-		)
+		let raw = toml::to_string(self).expect("serializing configuration");
+		std::fs::write(config_path(), raw)
 	}
 
 	pub fn ui(&mut self, ui: &mut egui::Ui) {
