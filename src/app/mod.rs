@@ -4,12 +4,13 @@ use std::sync::Arc;
 use ::image::ImageFormat;
 use eframe::CreationContext;
 use egui::style::Margin;
-use egui::{Color32, Context, Frame, Painter, Rect, Rounding, Vec2};
+use egui::{Color32, Context, Frame, Modifiers, Painter, Rect, Rounding, Vec2};
 
 pub use self::image::init_timezone;
-use self::state::actor::{NavigationMode, NextPath};
+use self::state::actor::{NavigationMode, NextPath, NextPathMode};
 use self::state::play::State as PlayState;
 use self::state::State as ImageState;
+use crate::app::next_path::Direction;
 use crate::args::Args;
 use crate::config::Config;
 use crate::duration::Duration;
@@ -204,6 +205,28 @@ fn show_fullscreen_toggle(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
 		.changed()
 	{
 		frame.set_fullscreen(fullscreen);
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
+enum MoveMode {
+	IgnoreSlideshow,
+	RespectSlideshow,
+}
+
+impl App {
+	fn move_in(&mut self, direction: Direction, mode: MoveMode) {
+		let respect_slideshow = match mode {
+			MoveMode::IgnoreSlideshow => false,
+			MoveMode::RespectSlideshow => true,
+		};
+		let mode = if respect_slideshow && self.slideshow.is_active() && self.config.slideshow.shuffle {
+			NextPathMode::Random
+		} else {
+			NextPathMode::Simple
+		};
+		let direction = NextPath { direction, mode };
+		self.image_state.next_path(direction);
 	}
 }
 
@@ -425,11 +448,7 @@ impl App {
 			.advance(&self.config, Duration::new_secs_f32_saturating(elapsed));
 
 		if next_from_slideshow {
-			if self.config.slideshow.shuffle {
-				self.move_in(NextPath::RANDOM);
-			} else {
-				self.move_right();
-			}
+			self.move_in(Direction::Right, MoveMode::RespectSlideshow);
 		}
 
 		if let SlideshowState::Active { remaining } = self.slideshow {
@@ -556,31 +575,34 @@ impl App {
 	fn handle_global_keys(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		use egui::Key;
 
-		let key = |key: Key| ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, key));
+		const KEYS: &[(Key, Modifiers, Direction)] = &[
+			(Key::ArrowLeft, Modifiers::NONE, Direction::Left),
+			(Key::ArrowRight, Modifiers::NONE, Direction::Right),
+			(Key::P, Modifiers::NONE, Direction::Left),
+			(Key::N, Modifiers::NONE, Direction::Right),
+			(Key::N, Modifiers::SHIFT, Direction::Left),
+		];
 
-		if key(Key::ArrowRight) {
-			self.move_right();
+		for &(key, modifiers, direction) in KEYS {
+			debug_assert!(!modifiers.contains(Modifiers::ALT));
+			let mode = ctx.input_mut(|input| {
+				Some(if input.consume_key(modifiers, key) {
+					MoveMode::RespectSlideshow
+				} else if input.consume_key(modifiers | Modifiers::ALT, key) {
+					MoveMode::IgnoreSlideshow
+				} else {
+					return None;
+				})
+			});
+			if let Some(mode) = mode {
+				self.move_in(direction, mode);
+			}
 		}
-		if key(Key::ArrowLeft) {
-			self.move_left();
-		}
-		if ctx
-			.input_mut(|input| input.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, Key::I))
-		{
+
+		if ctx.input_mut(|input| input.consume_key(Modifiers::CTRL | Modifiers::SHIFT, Key::I)) {
 			self.internal_open = !self.internal_open;
 		}
-	}
 
-	fn move_in(&mut self, direction: NextPath) {
-		self.image_state.next_path(direction);
-	}
-
-	fn move_right(&mut self) {
-		self.move_in(NextPath::RIGHT);
-	}
-
-	fn move_left(&mut self) {
-		self.move_in(NextPath::LEFT);
 	}
 
 	fn handle_actor_responses(&mut self) {

@@ -36,21 +36,6 @@ pub struct NextPath {
 }
 
 impl NextPath {
-	pub const RIGHT: Self = Self {
-		direction: next_path::Direction::Right,
-		mode: NextPathMode::Simple,
-	};
-
-	pub const LEFT: Self = Self {
-		direction: next_path::Direction::Left,
-		mode: NextPathMode::Simple,
-	};
-
-	pub const RANDOM: Self = Self {
-		direction: next_path::Direction::Right,
-		mode: NextPathMode::Random,
-	};
-
 	fn with_random_seed(self, seed: u64) -> next_path::NextPath {
 		next_path::NextPath {
 			direction: self.direction,
@@ -296,7 +281,11 @@ impl Actor {
 				std::fs::remove_file(&path)?;
 				let should_go_to_next = Some(&*path) == self.state.current_path().map(|path| &**path);
 				if should_go_to_next {
-					self.next_path(NextPath::RIGHT)
+					let args = NextPath {
+						direction: next_path::Direction::Right,
+						mode: NextPathMode::Simple,
+					};
+					self.next_path(args)
 				} else {
 					Ok(Response::NoOp)
 				}
