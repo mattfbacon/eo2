@@ -50,7 +50,8 @@ fn main_() -> Result<(), error::Stringed> {
 		"Image Viewer",
 		native_options,
 		Box::new(move |cc| Box::new(app::App::new(args, config, cc))),
-	);
+	)
+	.unwrap();
 
 	Ok(())
 }

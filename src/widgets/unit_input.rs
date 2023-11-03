@@ -72,12 +72,12 @@ impl<GS: FnMut(Option<&str>) -> String> Widget for UnitInput<GS> {
 	fn ui(mut self, ui: &mut Ui) -> Response {
 		let kb_edit_id = ui.id().with("kb_edit");
 
-		let mut buffer = if ui.memory().has_focus(kb_edit_id) {
-			std::mem::take(
-				ui.memory()
-					.data
-					.get_temp_mut_or_insert_with(kb_edit_id, || (self.get_set)(None)),
-			)
+		let mut buffer = if ui.memory(|memory| memory.has_focus(kb_edit_id)) {
+			ui.memory_mut(|memory| {
+				let data = &mut memory.data;
+				let buffer = data.get_temp_mut_or_insert_with(kb_edit_id, || (self.get_set)(None));
+				std::mem::take(buffer)
+			})
 		} else {
 			(self.get_set)(None)
 		};
@@ -94,14 +94,16 @@ impl<GS: FnMut(Option<&str>) -> String> Widget for UnitInput<GS> {
 		}
 
 		if response.has_focus() {
-			if ui.input().key_pressed(Key::Enter) {
-				ui.memory().surrender_focus(kb_edit_id);
-				ui.memory().data.remove::<String>(kb_edit_id);
+			if ui.input(|input| input.key_pressed(Key::Enter)) {
+				ui.memory_mut(|memory| {
+					memory.surrender_focus(kb_edit_id);
+					memory.data.remove::<String>(kb_edit_id);
+				});
 			} else {
-				*ui.memory().data.get_temp_mut_or(kb_edit_id, String::new()) = buffer;
+				ui.memory_mut(|memory| *memory.data.get_temp_mut_or(kb_edit_id, String::new()) = buffer);
 			}
 		} else if response.lost_focus() {
-			ui.memory().data.remove::<String>(kb_edit_id);
+			ui.memory_mut(|memory| memory.data.remove::<String>(kb_edit_id));
 		}
 
 		// propagating `response.changed()`

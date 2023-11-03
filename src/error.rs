@@ -14,7 +14,8 @@ pub fn show(error: String) {
 		"Error!",
 		NativeOptions::default(),
 		Box::new(|_cc| Box::new(App { error })),
-	);
+	)
+	.unwrap();
 }
 
 struct App {

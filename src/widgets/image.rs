@@ -1,3 +1,4 @@
+use egui::load::SizedTexture;
 use egui::{Rect, Response, Sense, TextureHandle, TextureId, Ui, Vec2, Widget};
 
 use super::image_size;
@@ -40,7 +41,7 @@ impl Zoom {
 		if let Some(pointer) = response.hover_pos() {
 			let pointer = pointer - response.rect.center();
 			let old_zoom = self.zoom_factor();
-			self.zoom += response.ctx.input().scroll_delta.y * 0.01;
+			self.zoom += response.ctx.input(|input| input.scroll_delta.y) * 0.01;
 			let zoom_delta = self.zoom_factor() / old_zoom;
 			self.center -= pointer;
 			self.center *= zoom_delta;
@@ -97,7 +98,11 @@ impl Image {
 
 		image_rect = self.zoom.apply(image_rect);
 
-		egui::widgets::Image::new(self.texture, scaled_size).paint_at(&mut ui, image_rect);
+		let texture = SizedTexture {
+			id: self.texture,
+			size: scaled_size,
+		};
+		egui::widgets::Image::from_texture(texture).paint_at(&mut ui, image_rect);
 
 		image_rect
 	}

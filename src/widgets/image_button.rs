@@ -39,7 +39,7 @@ impl Widget for ImageButton {
 		if ui.is_rect_visible(rect) {
 			let (rounding, fill, stroke) = if selected {
 				let visuals = ui.visuals().selection;
-				(egui::Rounding::none(), visuals.bg_fill, visuals.stroke)
+				(egui::Rounding::ZERO, visuals.bg_fill, visuals.stroke)
 			} else {
 				let visuals = ui.style().interact(&response);
 				(visuals.rounding, visuals.bg_fill, visuals.bg_stroke)

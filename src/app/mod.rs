@@ -131,7 +131,7 @@ fn format_to_string(format: ImageFormat) -> &'static str {
 impl config::Background {
 	fn draw(self, painter: &Painter, rect: Rect) {
 		fn draw_solid(painter: &Painter, rect: Rect, color: Color32) {
-			painter.rect_filled(rect, Rounding::none(), color);
+			painter.rect_filled(rect, Rounding::ZERO, color);
 		}
 
 		fn draw_checker(painter: &Painter, rect: Rect, color1: Color32, color2: Color32) {
@@ -140,7 +140,7 @@ impl config::Background {
 			const CHECKER_VEC: Vec2 = Vec2::splat(CHECKER_SIZE as f32);
 			const STEP: usize = (CHECKER_SIZE * 2) as usize;
 
-			painter.rect_filled(rect, Rounding::none(), color1);
+			painter.rect_filled(rect, Rounding::ZERO, color1);
 
 			let base_pos = rect.left_top();
 			// only add rects for color2
@@ -150,7 +150,7 @@ impl config::Background {
 				for x in (0..az::cast(rect.width())).step_by(STEP) {
 					painter.rect_filled(
 						Rect::from_min_size(base_pos + Vec2::new(az::cast(x), az::cast(y)), CHECKER_VEC),
-						Rounding::none(),
+						Rounding::ZERO,
 						color2,
 					);
 					painter.rect_filled(
@@ -158,7 +158,7 @@ impl config::Background {
 							base_pos + Vec2::new(az::cast(x), az::cast(y)) + CHECKER_VEC,
 							CHECKER_VEC,
 						),
-						Rounding::none(),
+						Rounding::ZERO,
 						color2,
 					);
 				}
@@ -224,7 +224,8 @@ impl App {
 				"Click to copy"
 			});
 			if clicked {
-				ui.output().copied_text = current_path.display().to_string();
+				let copied_text = current_path.display().to_string();
+				ui.output_mut(|output| output.copied_text = copied_text);
 			}
 		}
 	}
@@ -275,7 +276,7 @@ impl App {
 	}
 
 	fn delete_file(&mut self, ui: &egui::Ui, path: Arc<Path>) {
-		if ui.input().modifiers.shift {
+		if ui.input(|input| input.modifiers.shift) {
 			self.asking_to_delete = None;
 			self.image_state.delete_file(path);
 		} else {
@@ -288,7 +289,7 @@ impl App {
 			let style = ctx.style();
 			let frame = Frame {
 				inner_margin: Margin::symmetric(4.0, 2.0),
-				rounding: Rounding::none(),
+				rounding: Rounding::ZERO,
 				fill: style.visuals.window_fill(),
 				stroke: style.visuals.window_stroke(),
 				..Default::default()
@@ -417,7 +418,7 @@ impl App {
 	}
 
 	fn update_slideshow(&mut self, ctx: &Context) {
-		let elapsed = ctx.input().unstable_dt;
+		let elapsed = ctx.input(|input| input.unstable_dt);
 
 		let next_from_slideshow = self
 			.slideshow
@@ -482,7 +483,7 @@ impl App {
 								*playing = !*playing;
 							}
 							if *playing {
-								let elapsed = ctx.input().unstable_dt;
+								let elapsed = ctx.input(|input| input.unstable_dt);
 								current_frame.advance(
 									Duration::new_secs_f32_saturating(elapsed),
 									image.frames.len(),
@@ -555,7 +556,7 @@ impl App {
 	fn handle_global_keys(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		use egui::Key;
 
-		let key = |key: Key| ctx.input_mut().consume_key(egui::Modifiers::NONE, key);
+		let key = |key: Key| ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, key));
 
 		if key(Key::ArrowRight) {
 			self.move_right();
@@ -564,8 +565,7 @@ impl App {
 			self.move_left();
 		}
 		if ctx
-			.input_mut()
-			.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, Key::I)
+			.input_mut(|input| input.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, Key::I))
 		{
 			self.internal_open = !self.internal_open;
 		}
