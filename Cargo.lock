@@ -1188,7 +1188,7 @@ dependencies = [
 [[package]]
 name = "image"
 version = "0.24.7"
-source = "git+https://github.com/mattfbacon/image?rev=b15a1dad#b15a1dad51c68b343c4d4592aa22e9bb38ed8326"
+source = "git+https://github.com/mattfbacon/image?rev=5bbee1e2#5bbee1e2470c9266ef7560bf8f0e7c27f87e85ce"
 dependencies = [
  "bytemuck",
  "byteorder",

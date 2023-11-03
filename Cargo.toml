@@ -24,4 +24,4 @@ time = { version = "0.3", features = ["macros", "formatting", "local-offset"] }
 toml = "0.8"
 
 [patch.crates-io]
-image = { git = "https://github.com/mattfbacon/image", rev = "b15a1dad" }
+image = { git = "https://github.com/mattfbacon/image", rev = "5bbee1e2" }
