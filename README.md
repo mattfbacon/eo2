@@ -24,9 +24,15 @@ See the settings panel in the UI for a list of configuration.
 
 Binding | Action
 -:|:-
-Right Arrow | Go to next
-Left Arrow | Go to previous
-Ctrl-Shift-I | Toggle internal state window
+Right Arrow, n | Go to next
+Left Arrow, p, Shift-n | Go to previous
+Ctrl-Shift-i | Toggle internal state window
+c | Toggle settings
+f | Toggle fullscreen
+i | Toggle info panel
+s | Toggle slideshow
+
+The bindings that move between images normally respect slideshows, i.e., if there is an active slideshow and shuffle is enabled, the keys will move with the same randomness. To override this, use Alt.
 
 ## License
 

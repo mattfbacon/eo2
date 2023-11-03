@@ -61,17 +61,28 @@ impl SlideshowState {
 		*self = Self::Inactive;
 	}
 
+	fn set_active(&mut self, active: bool, config: &Config) {
+		if active {
+			self.start(config);
+		} else {
+			self.stop();
+		}
+	}
+
+	fn toggle(&mut self, config: &Config) {
+		self.set_active(!self.is_active(), config);
+	}
+
 	fn show_toggle(&mut self, ui: &mut egui::Ui, config: &Config) {
 		let mut slideshow_active = self.is_active();
 		let icon = if slideshow_active { "⏸" } else { "▶" };
-		let changed = ui.toggle_value(&mut slideshow_active, icon).changed();
+		let changed = ui
+			.toggle_value(&mut slideshow_active, icon)
+			.on_hover_text("Toggle slideshow (s)")
+			.changed();
 
 		if changed {
-			if slideshow_active {
-				self.start(config);
-			} else {
-				self.stop();
-			}
+			self.set_active(slideshow_active, config);
 		}
 	}
 }
@@ -201,7 +212,7 @@ fn show_fullscreen_toggle(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
 	let mut fullscreen = frame.info().window_info.fullscreen;
 	if ui
 		.toggle_value(&mut fullscreen, "⛶")
-		.on_hover_text("Toggle fullscreen")
+		.on_hover_text("Toggle fullscreen (f)")
 		.changed()
 	{
 		frame.set_fullscreen(fullscreen);
@@ -572,7 +583,7 @@ impl App {
 		}
 	}
 
-	fn handle_global_keys(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+	fn handle_global_keys(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
 		use egui::Key;
 
 		const KEYS: &[(Key, Modifiers, Direction)] = &[
@@ -603,6 +614,23 @@ impl App {
 			self.internal_open = !self.internal_open;
 		}
 
+		let key = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+
+		if key(Key::S) {
+			self.slideshow.toggle(&self.config);
+		}
+
+		if key(Key::F) {
+			frame.set_fullscreen(!frame.info().window_info.fullscreen);
+		}
+
+		if key(Key::I) {
+			self.config.show_sidebar ^= true;
+		}
+
+		if key(Key::C) {
+			self.settings_open ^= true;
+		}
 	}
 
 	fn handle_actor_responses(&mut self) {
