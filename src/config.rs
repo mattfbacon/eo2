@@ -53,7 +53,7 @@ impl BackgroundColor {
 		}
 	}
 
-	const VARIANTS: &[Self] = &[Self::Default, Self::Dark, Self::Light];
+	const VARIANTS: &'static [Self] = &[Self::Default, Self::Dark, Self::Light];
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
