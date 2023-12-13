@@ -21,129 +21,6 @@ pub struct NextPath {
 	pub mode: Mode,
 }
 
-#[derive(Debug)]
-struct Chunk<'a> {
-	number: Option<u32>,
-	string: &'a str,
-}
-
-impl Ord for Chunk<'_> {
-	fn cmp(&self, other: &Self) -> Ordering {
-		match (self.number, other.number) {
-			(Some(a), Some(b)) => a.cmp(&b),
-			_ => self.string.cmp(other.string),
-		}
-	}
-}
-
-impl<'a, 'b> PartialOrd<Chunk<'b>> for Chunk<'a> {
-	fn partial_cmp(&self, other: &Chunk<'b>) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-
-impl Eq for Chunk<'_> {}
-
-impl<'a, 'b> PartialEq<Chunk<'b>> for Chunk<'a> {
-	fn eq(&self, other: &Chunk<'b>) -> bool {
-		self.cmp(other).is_eq()
-	}
-}
-
-fn chunks(s: &str) -> impl Iterator<Item = Chunk<'_>> {
-	let mut want_num_chunk = false;
-	let mut rest = s;
-
-	std::iter::from_fn(move || loop {
-		if rest.is_empty() {
-			break None;
-		}
-
-		let chunk_end = rest
-			.find(|ch: char| ch.is_ascii_digit() ^ want_num_chunk)
-			.unwrap_or(rest.len());
-
-		want_num_chunk = !want_num_chunk;
-
-		let chunk = &rest[..chunk_end];
-		if chunk.is_empty() {
-			continue;
-		}
-
-		rest = &rest[chunk_end..];
-
-		break Some(Chunk {
-			number: chunk.parse().ok(),
-			string: chunk,
-		});
-	})
-}
-
-#[test]
-fn test_chunks() {
-	assert_eq!(
-		chunks("abc123").collect::<Vec<_>>(),
-		[
-			Chunk {
-				number: None,
-				string: "abc",
-			},
-			Chunk {
-				number: Some(123),
-				string: "123",
-			},
-		],
-	);
-	assert_eq!(
-		chunks("123abc").collect::<Vec<_>>(),
-		[
-			Chunk {
-				number: Some(123),
-				string: "123",
-			},
-			Chunk {
-				number: None,
-				string: "abc",
-			},
-		],
-	);
-	assert_eq!(
-		chunks("abc999999999999def").collect::<Vec<_>>(),
-		[
-			Chunk {
-				number: None,
-				string: "abc",
-			},
-			Chunk {
-				number: None,
-				string: "999999999999",
-			},
-			Chunk {
-				number: None,
-				string: "def",
-			},
-		],
-	);
-}
-
-fn human_compare(left: &str, right: &str) -> Ordering {
-	chunks(left).cmp(chunks(right))
-}
-
-#[test]
-fn test_human_compare() {
-	use human_compare as h;
-
-	assert_eq!(h("a", "b"), Ordering::Less);
-	assert_eq!(h("aa", "a"), Ordering::Greater);
-	assert_eq!(h("abc123", "abc123"), Ordering::Equal);
-	assert_eq!(h("abc", "abc123"), Ordering::Less);
-	assert_eq!(h("test.dxt5", "test.jpg"), Ordering::Less);
-	// #16
-	assert_eq!(h("11", "100"), Ordering::Less);
-	assert_eq!(h("a11", "a100"), Ordering::Less);
-}
-
 impl Direction {
 	fn for_ordering(self, ordering: Ordering) -> Ordering {
 		match self {
@@ -218,13 +95,13 @@ impl<T: AsRef<str>> Eq for HumanCompare<T> {}
 
 impl<T: AsRef<str>, U: AsRef<str>> PartialOrd<HumanCompare<U>> for HumanCompare<T> {
 	fn partial_cmp(&self, other: &HumanCompare<U>) -> Option<Ordering> {
-		Some(human_compare(self.0.as_ref(), other.0.as_ref()))
+		Some(natord::compare(self.0.as_ref(), other.0.as_ref()))
 	}
 }
 
 impl<T: AsRef<str>> Ord for HumanCompare<T> {
 	fn cmp(&self, other: &Self) -> Ordering {
-		human_compare(self.0.as_ref(), other.0.as_ref())
+		natord::compare(self.0.as_ref(), other.0.as_ref())
 	}
 }
 
