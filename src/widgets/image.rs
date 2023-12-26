@@ -102,7 +102,7 @@ impl Image {
 			id: self.texture,
 			size: scaled_size,
 		};
-		egui::widgets::Image::from_texture(texture).paint_at(&mut ui, image_rect);
+		egui::widgets::Image::from_texture(texture).paint_at(&ui, image_rect);
 
 		image_rect
 	}

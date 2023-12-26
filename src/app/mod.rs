@@ -4,7 +4,7 @@ use std::sync::Arc;
 use ::image::ImageFormat;
 use eframe::CreationContext;
 use egui::style::Margin;
-use egui::{Color32, Context, Frame, Modifiers, Painter, Rect, Rounding, Vec2};
+use egui::{Color32, Context, Frame, Modifiers, Painter, Rect, Rounding, Vec2, ViewportCommand};
 
 pub use self::image::init_timezone;
 use self::state::actor::{NavigationMode, NextPath, NextPathMode};
@@ -90,6 +90,7 @@ impl SlideshowState {
 pub struct App {
 	config: Config,
 	image_state: ImageState,
+	fullscreen: bool,
 	settings_open: bool,
 	internal_open: bool,
 	asking_to_delete: Option<Arc<Path>>,
@@ -112,6 +113,7 @@ impl App {
 		Self {
 			config,
 			image_state: ImageState::new(cc.egui_ctx.clone(), cache_size, navigation_mode),
+			fullscreen: false,
 			settings_open: false,
 			internal_open: false,
 			asking_to_delete: None,
@@ -208,14 +210,17 @@ impl config::Background {
 	}
 }
 
-fn show_fullscreen_toggle(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-	let mut fullscreen = frame.info().window_info.fullscreen;
+fn show_fullscreen_toggle(ui: &mut egui::Ui) {
+	let Some(mut fullscreen) = ui.input(|input| input.viewport().fullscreen) else {
+		return;
+	};
 	if ui
 		.toggle_value(&mut fullscreen, "⛶")
 		.on_hover_text("Toggle fullscreen (f)")
 		.changed()
 	{
-		frame.set_fullscreen(fullscreen);
+		let cmd = ViewportCommand::Fullscreen(!fullscreen);
+		ui.ctx().send_viewport_cmd(cmd);
 	}
 }
 
@@ -242,7 +247,7 @@ impl App {
 }
 
 impl App {
-	fn show_actions_left(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+	fn show_actions_left(&mut self, ui: &mut egui::Ui) {
 		if let Some(current_path) = self.image_state.current_path() {
 			let response =
 				ui.add(egui::Label::new(current_path.display().to_string()).sense(egui::Sense::click()));
@@ -264,13 +269,13 @@ impl App {
 		}
 	}
 
-	fn show_actions_right(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+	fn show_actions_right(&mut self, ui: &mut egui::Ui) {
 		let mut to_delete = None;
 
 		ui.toggle_value(&mut self.settings_open, "⛭")
 			.on_hover_text("Toggle settings window");
 
-		show_fullscreen_toggle(ui, frame);
+		show_fullscreen_toggle(ui);
 
 		self.config.light_dark_toggle_button(ui);
 
@@ -318,7 +323,7 @@ impl App {
 		}
 	}
 
-	fn show_actions(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+	fn show_actions(&mut self, ctx: &Context) {
 		let panel = {
 			let style = ctx.style();
 			let frame = Frame {
@@ -336,16 +341,16 @@ impl App {
 				use egui::{Align, Layout};
 
 				ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-					self.show_actions_left(ui, frame);
+					self.show_actions_left(ui);
 				});
 				ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-					self.show_actions_right(ui, frame);
+					self.show_actions_right(ui);
 				});
 			});
 		});
 	}
 
-	fn show_sidebar(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+	fn show_sidebar(&mut self, ctx: &Context) {
 		if !self.config.show_sidebar {
 			return;
 		}
@@ -383,7 +388,7 @@ impl App {
 		});
 	}
 
-	fn show_frames(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+	fn show_frames(&mut self, ctx: &Context) {
 		if !self.config.show_frames {
 			return;
 		}
@@ -467,7 +472,7 @@ impl App {
 		}
 	}
 
-	fn show_central(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+	fn show_central(&mut self, ctx: &Context) {
 		let panel = {
 			let margin = if matches!(
 				self.image_state.current,
@@ -539,7 +544,7 @@ impl App {
 		});
 	}
 
-	fn show_settings(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+	fn show_settings(&mut self, ctx: &Context) {
 		let window = egui::Window::new("Settings")
 			.open(&mut self.settings_open)
 			.resizable(false)
@@ -549,7 +554,7 @@ impl App {
 		});
 	}
 
-	fn show_asking_to_delete(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+	fn show_asking_to_delete(&mut self, ctx: &Context) {
 		if self.asking_to_delete.is_none() {
 			return;
 		}
@@ -583,7 +588,7 @@ impl App {
 		}
 	}
 
-	fn handle_global_keys(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+	fn handle_global_keys(&mut self, ctx: &Context) {
 		use egui::Key;
 
 		const KEYS: &[(Key, Modifiers, Direction)] = &[
@@ -621,7 +626,7 @@ impl App {
 		}
 
 		if key(Key::F) {
-			frame.set_fullscreen(!frame.info().window_info.fullscreen);
+			ctx.send_viewport_cmd(ViewportCommand::Fullscreen(!self.fullscreen));
 		}
 
 		if key(Key::I) {
@@ -639,22 +644,22 @@ impl App {
 }
 
 impl eframe::App for App {
-	fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+	fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		if !ctx.wants_keyboard_input() {
-			self.handle_global_keys(ctx, frame);
+			self.handle_global_keys(ctx);
 		}
 
 		self.update_slideshow(ctx);
 		self.handle_actor_responses();
 		self.image_state.show_errors(ctx);
 
-		self.show_settings(ctx, frame);
-		self.show_asking_to_delete(ctx, frame);
+		self.show_settings(ctx);
+		self.show_asking_to_delete(ctx);
 
-		self.show_actions(ctx, frame);
-		self.show_sidebar(ctx, frame);
-		self.show_frames(ctx, frame);
-		self.show_central(ctx, frame);
+		self.show_actions(ctx);
+		self.show_sidebar(ctx);
+		self.show_frames(ctx);
+		self.show_central(ctx);
 	}
 
 	// NB save is not called without the persistence feature, so on_exit is a better option

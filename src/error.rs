@@ -1,5 +1,5 @@
 use eframe::NativeOptions;
-use egui::Context;
+use egui::{Context, ViewportCommand};
 
 pub struct Stringed(pub String);
 
@@ -23,11 +23,11 @@ struct App {
 }
 
 impl eframe::App for App {
-	fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+	fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
 		egui::TopBottomPanel::bottom("ok-button-panel").show(ctx, |ui| {
 			ui.vertical_centered(|ui| {
 				if ui.button("Ok").clicked() {
-					frame.close();
+					ctx.send_viewport_cmd(ViewportCommand::Close);
 				}
 			});
 		});
