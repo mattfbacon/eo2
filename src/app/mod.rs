@@ -636,6 +636,10 @@ impl App {
 		if key(Key::C) {
 			self.settings_open ^= true;
 		}
+
+		if key(Key::Q) {
+			ctx.send_viewport_cmd(ViewportCommand::Close);
+		}
 	}
 
 	fn handle_actor_responses(&mut self) {
