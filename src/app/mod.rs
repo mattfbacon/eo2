@@ -44,15 +44,9 @@ impl SlideshowState {
 		};
 	}
 
-	fn advance(&mut self, config: &Config, secs: Duration) -> bool {
+	fn advance(&mut self, secs: Duration) -> bool {
 		match self {
-			Self::Active { remaining } => {
-				let has_elapsed = remaining.advance(secs);
-				if has_elapsed {
-					self.start(config);
-				}
-				has_elapsed
-			}
+			Self::Active { remaining } => remaining.advance(secs),
 			Self::Inactive => false,
 		}
 	}
@@ -83,6 +77,15 @@ impl SlideshowState {
 
 		if changed {
 			self.set_active(slideshow_active, config);
+		}
+	}
+
+	fn reset(&mut self, config: &Config) {
+		match self {
+			Self::Active { remaining } => {
+				*remaining = config.slideshow.interval;
+			}
+			Self::Inactive => {}
 		}
 	}
 }
@@ -243,6 +246,7 @@ impl App {
 		};
 		let direction = NextPath { direction, mode };
 		self.image_state.next_path(direction);
+		self.slideshow.reset(&self.config);
 	}
 }
 
@@ -467,7 +471,7 @@ impl App {
 
 		let next_from_slideshow = self
 			.slideshow
-			.advance(&self.config, Duration::new_secs_f32_saturating(elapsed));
+			.advance(Duration::new_secs_f32_saturating(elapsed));
 
 		if next_from_slideshow {
 			self.move_in(Direction::Right, MoveMode::RespectSlideshow);
