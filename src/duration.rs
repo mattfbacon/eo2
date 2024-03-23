@@ -54,9 +54,9 @@ impl FromStr for Duration {
 		let amount = amount.parse::<f32>()?;
 		let scale = match unit.to_ascii_lowercase().as_str() {
 			"us" | "µs" => 1.0,
-			"ms" => 1_000.0,
+			"ms" => MILLIS_MICROS_F,
 			// no unit = seconds
-			"" | "s" => 1_000_000.0,
+			"" | "s" => SECS_MICROS_F,
 			_ => return Err(FromStrError::UnknownUnit(unit.to_owned())),
 		};
 		let micros = amount * scale;
@@ -70,25 +70,37 @@ impl FromStr for Duration {
 #[error("value out of range")]
 pub struct OutOfRange;
 
+const SECS_MICROS: u32 = 1_000_000;
+#[allow(clippy::cast_precision_loss)]
+const SECS_MICROS_F: f32 = SECS_MICROS as f32;
+
+const MILLIS_MICROS: u32 = 1000;
+#[allow(clippy::cast_precision_loss)]
+const MILLIS_MICROS_F: f32 = MILLIS_MICROS as f32;
+
+const SECS_MILLIS: u32 = 1000;
+#[allow(clippy::cast_precision_loss)]
+const SECS_MILLIS_F: f32 = SECS_MILLIS as f32;
+
 impl Duration {
 	pub const MAX: Self = Self { micros: u32::MAX };
 
 	pub fn new_secs_f32(secs: f32) -> Result<Self, OutOfRange> {
-		az::checked_cast(secs * 1_000_000.0)
+		az::checked_cast(secs * SECS_MICROS_F)
 			.ok_or(OutOfRange)
 			.map(Self::new_micros)
 	}
 
 	pub fn new_secs_f32_saturating(secs: f32) -> Self {
-		Self::new_micros(az::saturating_cast::<_, u32>(secs * 1_000_000.0))
+		Self::new_micros(az::saturating_cast::<_, u32>(secs * SECS_MICROS_F))
 	}
 
 	pub fn as_secs_f32(self) -> f32 {
-		az::cast::<_, f32>(self.micros) / 1_000_000.0
+		az::cast::<_, f32>(self.micros) / SECS_MICROS_F
 	}
 
 	pub fn new_millis_f32(millis: f32) -> Result<Self, OutOfRange> {
-		az::checked_cast(millis * 1_000.0)
+		az::checked_cast(millis * MILLIS_MICROS_F)
 			.ok_or(OutOfRange)
 			.map(Self::new_micros)
 	}
@@ -105,7 +117,7 @@ impl Duration {
 
 	pub const fn new_secs(secs: u32) -> Result<Self, OutOfRange> {
 		// like this to be const
-		match secs.checked_mul(1_000_000) {
+		match secs.checked_mul(SECS_MICROS) {
 			Some(micros) => Ok(Self::new_micros(micros)),
 			None => Err(OutOfRange),
 		}
@@ -142,13 +154,13 @@ impl TryFrom<image::Delay> for Duration {
 impl std::fmt::Display for Duration {
 	fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		let micros: f32 = az::cast(self.micros);
-		let (value, unit) = if micros < 1_000.0 {
+		let (value, unit) = if micros < MILLIS_MICROS_F {
 			(micros, "us")
-		} else if micros < 1_000_000.0 {
-			(micros / 1_000.0, "ms")
+		} else if micros < SECS_MICROS_F {
+			(micros / MILLIS_MICROS_F, "ms")
 		} else {
-			// ensure that there are only 3 decimal places at most
-			((micros / 1_000.0).round() / 1_000.0, "s")
+			// Ensure that there are only 3 decimal places at most.
+			((micros / MILLIS_MICROS_F).round() / SECS_MILLIS_F, "s")
 		};
 
 		write!(formatter, "{value} {unit}")
