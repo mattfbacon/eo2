@@ -99,6 +99,14 @@ impl Duration {
 		az::cast::<_, f32>(self.micros) / SECS_MICROS_F
 	}
 
+	pub fn whole_secs(self) -> u32 {
+		self.micros / SECS_MICROS
+	}
+
+	pub fn ceil_secs(self) -> u32 {
+		self.micros.div_ceil(SECS_MICROS)
+	}
+
 	pub fn new_millis_f32(millis: f32) -> Result<Self, OutOfRange> {
 		az::checked_cast(millis * MILLIS_MICROS_F)
 			.ok_or(OutOfRange)

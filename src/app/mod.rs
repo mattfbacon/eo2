@@ -309,6 +309,12 @@ impl App {
 			ui.spinner().on_hover_text("Loading");
 		}
 
+		if let SlideshowState::Active { remaining } = self.slideshow {
+			ui.label(format!("\u{2398} {} s", remaining.ceil_secs()));
+			ui.ctx()
+				.request_repaint_after(std::time::Duration::from_secs(1));
+		}
+
 		if let Some(to_delete) = to_delete {
 			self.delete_file(ui, to_delete);
 		}
