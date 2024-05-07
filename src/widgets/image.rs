@@ -41,7 +41,7 @@ impl Zoom {
 		if let Some(pointer) = response.hover_pos() {
 			let pointer = pointer - response.rect.center();
 			let old_zoom = self.zoom_factor();
-			self.zoom += response.ctx.input(|input| input.scroll_delta.y) * 0.01;
+			self.zoom += response.ctx.input(|input| input.smooth_scroll_delta.y) * 0.01;
 			let zoom_delta = self.zoom_factor() / old_zoom;
 			self.center -= pointer;
 			self.center *= zoom_delta;

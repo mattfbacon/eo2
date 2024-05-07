@@ -11,10 +11,10 @@ bytemuck = "1"
 clru = { version = "0.6.1" }
 crossbeam-channel = "0.5"
 directories-next = "2"
-eframe = { version = "0.24", features = ["serde"] }
-egui = "0.24"
+eframe = { version = "0.27", features = ["serde"] }
+egui = "0.27"
 humansize = "2"
-image = { version = "0.24", features = ["jpeg_rayon", "avif-decoder"] }
+image = "0.25"
 natord = "1"
 once_cell = "1"
 rand = "0.8"
@@ -25,4 +25,9 @@ time = { version = "0.3", features = ["macros", "formatting", "local-offset"] }
 toml = "0.8"
 
 [patch.crates-io]
-image = { git = "https://github.com/mattfbacon/image", rev = "5bbee1e2" }
+eframe = { git = "https://github.com/mattfbacon/egui", rev = "f5a50e3" }
+egui = { git = "https://github.com/mattfbacon/egui", rev = "f5a50e3" }
+image = { git = "https://github.com/mattfbacon/image", rev = "b8800f0" }
+
+[profile.dev]
+opt-level = 1

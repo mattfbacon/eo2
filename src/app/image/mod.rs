@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use egui::{Context, TextureFilter, TextureHandle, TextureOptions};
+use egui::{Context, TextureFilter, TextureHandle, TextureOptions, TextureWrapMode};
 use image::{ImageFormat, ImageResult};
 use once_cell::sync::Lazy;
 
@@ -86,6 +86,7 @@ impl Image {
 				TextureOptions {
 					magnification: TextureFilter::Nearest,
 					minification: TextureFilter::Linear,
+					wrap_mode: TextureWrapMode::default(),
 				},
 			)
 		})?;

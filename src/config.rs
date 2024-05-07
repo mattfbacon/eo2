@@ -92,7 +92,7 @@ impl Slideshow {
 					.suffix(" s")
 					.clamp_range(0.001..=Duration::MAX.as_secs_f32());
 					*/
-				ui.add(crate::widgets::UnitInput::duration(&mut self.interval));
+				ui.add(widgets::UnitInput::duration(&mut self.interval));
 			});
 			rows.row("Shuffle", |ui| ui.checkbox(&mut self.shuffle, ""));
 		});
@@ -148,7 +148,7 @@ impl Config {
 			});
 			rows.row("Cache Size", |ui| {
 				let mut size = self.cache_size.get();
-				if ui.add(crate::widgets::UnitInput::size(&mut size)).changed() {
+				if ui.add(widgets::UnitInput::size(&mut size)).changed() {
 					if let Some(nz) = NonZeroUsize::new(size) {
 						self.cache_size = nz;
 					}

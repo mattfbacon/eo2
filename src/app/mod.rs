@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use ::image::ImageFormat;
 use eframe::CreationContext;
-use egui::style::Margin;
-use egui::{Color32, Context, Frame, Modifiers, Painter, Rect, Rounding, Vec2, ViewportCommand};
+use egui::{
+	Color32, Context, Frame, Margin, Modifiers, Painter, Rect, Rounding, Vec2, ViewportCommand,
+};
 
 pub use self::image::init_timezone;
 use self::state::actor::{NavigationMode, NextPath, NextPathMode};
@@ -130,7 +131,7 @@ fn format_to_string(format: ImageFormat) -> &'static str {
 		ImageFormat::Png => "PNG",
 		ImageFormat::Jpeg => "JPEG",
 		ImageFormat::Gif => "GIF",
-		ImageFormat::WebP => "WEBP",
+		ImageFormat::WebP => "WebP",
 		ImageFormat::Pnm => "PNM",
 		ImageFormat::Tiff => "TIFF",
 		ImageFormat::Tga => "TGA",
@@ -296,7 +297,7 @@ impl App {
 					.on_hover_text("Reset zoom")
 					.clicked()
 				{
-					inner.zoom = crate::widgets::image::Zoom::default();
+					inner.zoom = widgets::image::Zoom::default();
 				}
 
 				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")

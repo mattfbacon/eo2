@@ -14,11 +14,7 @@ type Frame = Box<[Color32]>;
 trait DecoderVisitor {
 	type Return;
 
-	fn visit<'a, D: ImageDecoder<'a>>(
-		self,
-		decoder: D,
-		format: ImageFormat,
-	) -> ImageResult<Self::Return>;
+	fn visit<D: ImageDecoder>(self, decoder: D, format: ImageFormat) -> ImageResult<Self::Return>;
 	fn visit_animated<'a, D: AnimationDecoder<'a>>(
 		self,
 		decoder: D,
@@ -34,8 +30,8 @@ fn load_decoder<V: DecoderVisitor>(
 	macro_rules! visitors {
 		(@arm @png $($decoder:ident)::*) => {{
 			let decoder = image::codecs:: $($decoder)::* ::new(reader)?;
-			if decoder.is_apng() {
-				visitor.visit_animated(decoder.apng(), format)
+			if decoder.is_apng()? {
+				visitor.visit_animated(decoder.apng()?, format)
 			} else {
 				visitor.visit(decoder, format)
 			}
@@ -57,7 +53,6 @@ fn load_decoder<V: DecoderVisitor>(
 	}
 
 	visitors! {
-		Avif => avif::AvifDecoder,
 		Png => @png png::PngDecoder,
 		Gif => @animated gif::GifDecoder,
 		Jpeg => jpeg::JpegDecoder,
@@ -67,7 +62,7 @@ fn load_decoder<V: DecoderVisitor>(
 		Dds => dds::DdsDecoder,
 		Bmp => bmp::BmpDecoder,
 		Ico => ico::IcoDecoder,
-		Hdr => hdr::HdrAdapter,
+		Hdr => hdr::HdrDecoder,
 		OpenExr => openexr::OpenExrDecoder,
 		Pnm => pnm::PnmDecoder,
 		Qoi => qoi::QoiDecoder,
@@ -83,7 +78,7 @@ struct Visitor<F> {
 impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for Visitor<F> {
 	type Return = Image<OutFrameType>;
 
-	fn visit<'a, D: ImageDecoder<'a>>(
+	fn visit<D: ImageDecoder>(
 		mut self,
 		mut decoder: D,
 		format: ImageFormat,
@@ -115,8 +110,7 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 		decoder: D,
 		format: ImageFormat,
 	) -> ImageResult<Self::Return> {
-		let error =
-			|error| ImageError::Decoding(image::error::DecodingError::new(format.into(), error));
+		let error = |error| ImageError::Decoding(DecodingError::new(format.into(), error));
 		let partial_frame_error = || error("partial frames are unimplemented");
 
 		let mut size = None;
