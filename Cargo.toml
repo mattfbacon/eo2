@@ -14,7 +14,7 @@ directories-next = "2"
 eframe = { version = "0.27", features = ["serde"] }
 egui = "0.27"
 humansize = "2"
-image = "0.25"
+image = { version = "0.25", features = ["avif-native"] }
 natord = "1"
 once_cell = "1"
 rand = "0.8"
@@ -25,9 +25,7 @@ time = { version = "0.3", features = ["macros", "formatting", "local-offset"] }
 toml = "0.8"
 
 [patch.crates-io]
-eframe = { git = "https://github.com/mattfbacon/egui", rev = "f5a50e3" }
-egui = { git = "https://github.com/mattfbacon/egui", rev = "f5a50e3" }
-image = { git = "https://github.com/mattfbacon/image", rev = "b8800f0" }
+image = { git = "https://github.com/mattfbacon/image", rev = "be3f32e" }
 
 [profile.dev]
 opt-level = 1

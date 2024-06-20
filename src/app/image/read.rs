@@ -53,6 +53,7 @@ fn load_decoder<V: DecoderVisitor>(
 	}
 
 	visitors! {
+		Avif => avif::AvifDecoder,
 		Png => @png png::PngDecoder,
 		Gif => @animated gif::GifDecoder,
 		Jpeg => jpeg::JpegDecoder,
