@@ -1,7 +1,7 @@
 use egui::load::SizedTexture;
 use egui::{Rect, Response, Sense, TextureHandle, TextureId, Ui, Vec2, Widget};
 
-use super::image_size;
+use super::scale_factor;
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Zoom {
@@ -14,7 +14,7 @@ pub struct Zoom {
 impl Default for Zoom {
 	fn default() -> Self {
 		Self {
-			center: Vec2 { x: 0.0, y: 0.0 },
+			center: Vec2::ZERO,
 			zoom: 0.0,
 		}
 	}
@@ -25,16 +25,22 @@ impl Zoom {
 		2f32.powf(self.zoom)
 	}
 
+	fn from_factor(center: Vec2, zoom_factor: f32) -> Self {
+		Self {
+			center,
+			zoom: zoom_factor.log2(),
+		}
+	}
+
 	fn apply(self, rect: Rect) -> Rect {
 		let center = rect.center() + self.center;
 		let size = rect.size() * self.zoom_factor();
 		Rect::from_center_size(center, size)
 	}
 
-	pub fn update_from_response(&mut self, response: &Response) {
+	pub fn update_from_response(mut self, response: &Response) -> Self {
 		if response.middle_clicked() {
-			*self = Self::default();
-			return;
+			return Self::default();
 		}
 
 		self.center += response.drag_delta();
@@ -47,10 +53,8 @@ impl Zoom {
 			self.center *= zoom_delta;
 			self.center += pointer;
 		}
-	}
 
-	pub fn modified(self) -> bool {
-		self != Self::default()
+		self
 	}
 }
 
@@ -80,6 +84,14 @@ impl Image {
 		Self { zoom, ..self }
 	}
 
+	pub fn smart_zoom(self, zoom: &mut Option<Zoom>, available_size: Vec2) -> Self {
+		let zoom = zoom.get_or_insert_with(|| {
+			let zoom = scale_factor(self.actual_size, available_size);
+			Zoom::from_factor(Vec2::ZERO, zoom)
+		});
+		self.zoom(*zoom)
+	}
+
 	pub fn clickable(self, clickable: bool) -> Self {
 		Self { clickable, ..self }
 	}
@@ -90,17 +102,12 @@ impl Image {
 		let mut ui = ui.child_ui(available_rect, *ui.layout());
 		ui.set_clip_rect(available_rect.intersect(ui.clip_rect()));
 
-		let available_size = available_rect.size();
-		let scaled_size = image_size(self.actual_size, available_size);
-		let mut image_rect = ui
-			.layout()
-			.align_size_within_rect(scaled_size, available_rect);
-
-		image_rect = self.zoom.apply(image_rect);
+		let image_rect = Rect::from_center_size(available_rect.center(), self.actual_size);
+		let image_rect = self.zoom.apply(image_rect);
 
 		let texture = SizedTexture {
 			id: self.texture,
-			size: scaled_size,
+			size: image_rect.size(),
 		};
 		egui::widgets::Image::from_texture(texture).paint_at(&ui, image_rect);
 

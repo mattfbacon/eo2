@@ -293,11 +293,11 @@ impl App {
 
 			if let Ok(inner) = &mut current.inner {
 				if ui
-					.add_enabled(inner.zoom.modified(), egui::Button::new("="))
+					.add(egui::Button::new("="))
 					.on_hover_text("Reset zoom")
 					.clicked()
 				{
-					inner.zoom = widgets::image::Zoom::default();
+					inner.zoom = None;
 				}
 
 				ui.toggle_value(&mut self.config.show_sidebar, "ℹ")
@@ -511,9 +511,10 @@ impl App {
 			}) => {
 				ui.centered_and_justified(|ui| {
 					self.config.background.draw(ui.painter(), ui.max_rect());
+					let size = ui.max_rect().size();
 					let response = match play_state {
 						PlayState::Single => {
-							ui.add(widgets::Image::for_texture(&image.frames[0].0).zoom(*zoom))
+							ui.add(widgets::Image::for_texture(&image.frames[0].0).smart_zoom(zoom, size))
 						}
 						PlayState::Animated {
 							current_frame,
@@ -523,7 +524,7 @@ impl App {
 							let response = ui.add(
 								widgets::Image::for_texture(current_texture)
 									.clickable(true)
-									.zoom(*zoom),
+									.smart_zoom(zoom, size),
 							);
 							if response.clicked() {
 								*playing = !*playing;
@@ -541,7 +542,9 @@ impl App {
 						}
 					};
 
-					zoom.update_from_response(&response);
+					if let Some(zoom) = zoom {
+						*zoom = zoom.update_from_response(&response);
+					}
 				});
 			}
 			Some(state::OpenImage {

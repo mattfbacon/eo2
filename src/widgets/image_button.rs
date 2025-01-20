@@ -49,7 +49,9 @@ impl Widget for ImageButton {
 			ui.painter().rect_filled(rect, rounding, fill);
 
 			let available_rect = rect.shrink2(padding);
-			super::Image::new(texture, image_size_actual).paint_at(ui, available_rect);
+			super::Image::new(texture, image_size_actual)
+				.smart_zoom(&mut None, available_rect.size())
+				.paint_at(ui, available_rect);
 
 			// Draw frame outline:
 			ui.painter().rect_stroke(rect, rounding, stroke);

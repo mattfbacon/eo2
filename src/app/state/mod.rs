@@ -15,7 +15,7 @@ pub mod play;
 pub struct OpenImageInner {
 	pub play_state: play::State,
 	pub image: Arc<Image>,
-	pub zoom: crate::widgets::image::Zoom,
+	pub zoom: Option<crate::widgets::image::Zoom>,
 }
 
 pub struct OpenImage {
@@ -106,7 +106,7 @@ impl State {
 						OpenImageInner {
 							play_state,
 							image,
-							zoom: crate::widgets::image::Zoom::default(),
+							zoom: None,
 						}
 					});
 					self.current = Some(OpenImage { inner, path });
