@@ -136,9 +136,10 @@ fn find_next_impl<K: MakeFindNextKey + ?Sized>(
 			name: HumanCompare(this_name),
 		};
 
-		if wrapped_name.as_ref().map_or(true, |first_name| {
-			direction.before(&this_name, &first_name.inner)
-		}) {
+		if wrapped_name
+			.as_ref()
+			.is_none_or(|first_name| direction.before(&this_name, &first_name.inner))
+		{
 			wrapped_name = Some(WithIndex {
 				inner: this_name.clone(),
 				idx,
@@ -151,9 +152,10 @@ fn find_next_impl<K: MakeFindNextKey + ?Sized>(
 				name: this_name.name.as_ref(),
 			},
 			&current_name,
-		) && next_name.as_ref().map_or(true, |next_name| {
-			direction.before(&this_name, &next_name.inner)
-		}) {
+		) && next_name
+			.as_ref()
+			.is_none_or(|next_name| direction.before(&this_name, &next_name.inner))
+		{
 			next_name = Some(WithIndex {
 				inner: this_name,
 				idx,
@@ -237,7 +239,7 @@ fn test_find_next_impl() {
 pub fn read_dir_to_find_next_iterator(dir: std::fs::ReadDir) -> impl Iterator<Item = String> {
 	dir
 		.filter_map(Result::ok)
-		.filter(|entry| entry.file_type().map_or(false, |ty| !ty.is_dir()))
+		.filter(|entry| entry.file_type().is_ok_and(|ty| !ty.is_dir()))
 		.map(|entry| entry.file_name())
 		.filter(|name| image::ImageFormat::from_path(name).is_ok())
 		.map(|name| name.to_string_lossy().into_owned())

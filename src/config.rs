@@ -1,8 +1,7 @@
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
-use eframe::Theme;
-use egui::ComboBox;
+use egui::{ComboBox, ThemePreference};
 use serde::{Deserialize, Serialize};
 
 use crate::duration::Duration;
@@ -10,7 +9,7 @@ use crate::widgets;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
-	pub theme: Option<Theme>,
+	pub theme: ThemePreference,
 	#[serde(default)]
 	pub show_sidebar: bool,
 	#[serde(default)]
@@ -111,7 +110,7 @@ impl Background {
 	fn ui(&mut self, ui: &mut egui::Ui) {
 		widgets::KeyValue::new("config-background-kv").show(ui, |mut rows| {
 			rows.row("Color", |ui| {
-				ComboBox::from_id_source("config-background-color-combo")
+				ComboBox::from_id_salt("config-background-color-combo")
 					.selected_text(self.color.repr())
 					.show_ui(ui, |ui| {
 						for &variant in BackgroundColor::VARIANTS {
@@ -158,13 +157,16 @@ impl Config {
 	}
 
 	pub fn light_dark_toggle_button(&mut self, ui: &mut egui::Ui) {
-		if let Some(new_visuals) = ui.ctx().style().visuals.light_dark_small_toggle_button(ui) {
-			self.theme = Some(if new_visuals.dark_mode {
-				Theme::Dark
-			} else {
-				Theme::Light
+		let mut theme = ui.options(|opts| opts.theme_preference);
+		let old_theme = theme;
+
+		theme.radio_buttons(ui);
+
+		if theme != old_theme {
+			self.theme = theme;
+			ui.options_mut(|opts| {
+				opts.theme_preference = theme;
 			});
-			ui.ctx().set_visuals(new_visuals);
 		}
 	}
 }

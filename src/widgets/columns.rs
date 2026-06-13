@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use egui::{NumExt as _, Rect, ScrollArea, Ui};
+use egui::{NumExt as _, Rect, ScrollArea, Ui, UiBuilder};
 
 pub trait ShowColumnsExt {
 	fn show_columns(
@@ -41,7 +41,7 @@ impl ShowColumnsExt for ScrollArea {
 
 			let rect = Rect::from_x_y_ranges(x_min..=x_max, ui.max_rect().y_range());
 
-			ui.allocate_ui_at_rect(rect, |ui| {
+			ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
 				ui.skip_ahead_auto_ids(min_col);
 				ui.horizontal(|ui| {
 					add_contents(ui, min_col..max_col);

@@ -34,15 +34,15 @@ impl Widget for ImageButton {
 
 		let padding = Vec2::splat(ui.spacing().button_padding.x);
 		let (rect, response) = ui.allocate_exact_size(button_size, Sense::click());
-		response.widget_info(|| WidgetInfo::new(WidgetType::ImageButton));
+		response.widget_info(|| WidgetInfo::new(WidgetType::Button));
 
 		if ui.is_rect_visible(rect) {
 			let (rounding, fill, stroke) = if selected {
 				let visuals = ui.visuals().selection;
-				(egui::Rounding::ZERO, visuals.bg_fill, visuals.stroke)
+				(0.into(), visuals.bg_fill, visuals.stroke)
 			} else {
 				let visuals = ui.style().interact(&response);
-				(visuals.rounding, visuals.bg_fill, visuals.bg_stroke)
+				(visuals.corner_radius, visuals.bg_fill, visuals.bg_stroke)
 			};
 
 			// Draw frame background (for transparent images):
@@ -54,7 +54,8 @@ impl Widget for ImageButton {
 				.paint_at(ui, available_rect);
 
 			// Draw frame outline:
-			ui.painter().rect_stroke(rect, rounding, stroke);
+			ui.painter()
+				.rect_stroke(rect, rounding, stroke, egui::StrokeKind::Outside);
 		}
 
 		response

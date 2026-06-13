@@ -83,25 +83,35 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 		mut decoder: D,
 		format: ImageFormat,
 	) -> ImageResult<Self::Return> {
-		let mut limits = Limits::default();
-		limits.max_image_width = Some(1_000_000);
-		limits.max_image_height = Some(1_000_000);
-		limits.max_alloc = Some(1024 * 1024 * 1024); // 1 GB
-		limits.reserve(decoder.total_bytes())?;
-		decoder.set_limits(limits)?;
+		decoder.set_limits({
+			let mut limits = Limits::default();
+			limits.max_image_width = Some(1_000_000);
+			limits.max_image_height = Some(1_000_000);
+			limits.max_alloc = Some(1024 * 1024 * 1024); // 1 GB
+			limits.reserve(decoder.total_bytes())?;
+			limits
+		})?;
+
 		let orientation = decoder.orientation()?;
+
 		let mut image = DynamicImage::from_decoder(decoder)?;
 		image.apply_orientation(orientation);
+
 		let image = image.into_rgba8();
+
 		let (width, height) = image.dimensions();
-		// `egui::Color32` and `image::Rgba<u8>` have the same size (4) and align (1) so `cast_vec` will never fail
-		let frame = bytemuck::allocation::cast_vec(image.into_raw());
+
+		let frame = image
+			.pixels()
+			.map(|&image::Rgba([r, g, b, a])| Color32::from_rgba_premultiplied(r, g, b, a))
+			.collect::<Box<[_]>>();
+
 		Ok(Image {
 			format,
 			width,
 			height,
 			frames: vec![(
-				(self.frame_mapper)(width, height, frame.into()),
+				(self.frame_mapper)(width, height, frame),
 				Duration::new_secs(1).unwrap(), // this value is ignored
 			)],
 			metadata: self.metadata,
@@ -140,9 +150,14 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 				}
 
 				let delay = frame.delay();
-				let frame = bytemuck::allocation::cast_vec(frame.into_buffer().into_raw());
+				let frame = frame
+					.buffer()
+					.pixels()
+					.map(|&image::Rgba([r, g, b, a])| Color32::from_rgba_premultiplied(r, g, b, a))
+					.collect::<Box<[_]>>();
+
 				Ok((
-					(self.frame_mapper)(width, height, frame.into()),
+					(self.frame_mapper)(width, height, frame),
 					delay.try_into().map_err(|_| error("delay out of range"))?,
 				))
 			})

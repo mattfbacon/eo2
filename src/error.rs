@@ -1,5 +1,5 @@
 use eframe::NativeOptions;
-use egui::{Context, ViewportCommand};
+use egui::{Ui, ViewportCommand};
 
 pub struct Stringed(pub String);
 
@@ -13,7 +13,7 @@ pub fn show(error: String) {
 	eframe::run_native(
 		"Error!",
 		NativeOptions::default(),
-		Box::new(|_cc| Box::new(App { error })),
+		Box::new(|_cc| Ok(Box::new(App { error }))),
 	)
 	.unwrap();
 }
@@ -23,16 +23,16 @@ struct App {
 }
 
 impl eframe::App for App {
-	fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-		egui::TopBottomPanel::bottom("ok-button-panel").show(ctx, |ui| {
+	fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+		egui::Panel::bottom("ok-button-panel").show_inside(ui, |ui| {
 			ui.vertical_centered(|ui| {
 				if ui.button("Ok").clicked() {
-					ctx.send_viewport_cmd(ViewportCommand::Close);
+					ui.send_viewport_cmd(ViewportCommand::Close);
 				}
 			});
 		});
 
-		egui::CentralPanel::default().show(ctx, |ui| {
+		egui::CentralPanel::default().show_inside(ui, |ui| {
 			ui.heading("A fatal error occurred and the application will now exit.");
 			ui.label(&self.error);
 		});

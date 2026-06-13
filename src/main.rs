@@ -38,16 +38,10 @@ fn main_() -> Result<(), error::Stringed> {
 	let args = args::load();
 	let config = config::load()?;
 
-	let mut native_options = eframe::NativeOptions::default();
-	if let Some(theme) = config.theme {
-		native_options.follow_system_theme = false;
-		native_options.default_theme = theme;
-	}
-
 	eframe::run_native(
 		"Image Viewer",
-		native_options,
-		Box::new(move |cc| Box::new(app::App::new(args, config, cc))),
+		eframe::NativeOptions::default(),
+		Box::new(move |cc| Ok(Box::new(app::App::new(args, config, cc)))),
 	)
 	.unwrap();
 

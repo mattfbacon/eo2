@@ -1,5 +1,5 @@
 use egui::load::SizedTexture;
-use egui::{Rect, Response, Sense, TextureHandle, TextureId, Ui, Vec2, Widget};
+use egui::{Rect, Response, Sense, TextureHandle, TextureId, Ui, UiBuilder, Vec2, Widget};
 
 use super::scale_factor;
 
@@ -99,7 +99,11 @@ impl Image {
 	/// Returns the actual rect that the image filled
 	pub fn paint_at(self, ui: &mut Ui, available_rect: Rect) -> Rect {
 		// Create a child UI so we can set the clip of the painter
-		let mut ui = ui.child_ui(available_rect, *ui.layout());
+		let mut ui = ui.new_child(
+			UiBuilder::new()
+				.max_rect(available_rect)
+				.layout(*ui.layout()),
+		);
 		ui.set_clip_rect(available_rect.intersect(ui.clip_rect()));
 
 		let image_rect = Rect::from_center_size(available_rect.center(), self.actual_size);

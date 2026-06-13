@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use ::image::ImageFormat;
 use eframe::CreationContext;
-use egui::{
-	Color32, Context, Frame, Margin, Modifiers, Painter, Rect, Rounding, Vec2, ViewportCommand,
-};
+use egui::{Color32, Context, Frame, Margin, Modifiers, Painter, Rect, Ui, Vec2, ViewportCommand};
 
 pub use self::image::init_timezone;
 use self::state::actor::{NavigationMode, NextPath, NextPathMode};
@@ -68,7 +66,7 @@ impl SlideshowState {
 		self.set_active(!self.is_active(), config);
 	}
 
-	fn show_toggle(&mut self, ui: &mut egui::Ui, config: &Config) {
+	fn show_toggle(&mut self, ui: &mut Ui, config: &Config) {
 		let mut slideshow_active = self.is_active();
 		let icon = if slideshow_active { "⏸" } else { "▶" };
 		let changed = ui
@@ -104,6 +102,9 @@ pub struct App {
 impl App {
 	#[allow(clippy::needless_pass_by_value)] // consistency
 	pub fn new(Args { paths }: Args, config: Config, cc: &CreationContext<'_>) -> Self {
+		cc.egui_ctx.options_mut(|opts| {
+			opts.theme_preference = config.theme;
+		});
 		let navigation_mode = match paths.len() {
 			0 => NavigationMode::Empty,
 			1 => NavigationMode::InDirectory {
@@ -147,9 +148,9 @@ fn format_to_string(format: ImageFormat) -> &'static str {
 }
 
 impl config::Background {
-	fn draw(self, painter: &Painter, rect: Rect) {
+	fn draw(self, ui: &mut Ui) {
 		fn draw_solid(painter: &Painter, rect: Rect, color: Color32) {
-			painter.rect_filled(rect, Rounding::ZERO, color);
+			painter.rect_filled(rect, 0, color);
 		}
 
 		fn draw_checker(painter: &Painter, rect: Rect, color1: Color32, color2: Color32) {
@@ -158,7 +159,7 @@ impl config::Background {
 			const CHECKER_VEC: Vec2 = Vec2::splat(CHECKER_SIZE as f32);
 			const STEP: usize = (CHECKER_SIZE * 2) as usize;
 
-			painter.rect_filled(rect, Rounding::ZERO, color1);
+			painter.rect_filled(rect, 0, color1);
 
 			let base_pos = rect.left_top();
 			// only add rects for color2
@@ -168,7 +169,7 @@ impl config::Background {
 				for x in (0..az::cast(rect.width())).step_by(STEP) {
 					painter.rect_filled(
 						Rect::from_min_size(base_pos + Vec2::new(az::cast(x), az::cast(y)), CHECKER_VEC),
-						Rounding::ZERO,
+						0,
 						color2,
 					);
 					painter.rect_filled(
@@ -176,7 +177,7 @@ impl config::Background {
 							base_pos + Vec2::new(az::cast(x), az::cast(y)) + CHECKER_VEC,
 							CHECKER_VEC,
 						),
-						Rounding::ZERO,
+						0,
 						color2,
 					);
 				}
@@ -184,7 +185,7 @@ impl config::Background {
 		}
 
 		let dark = match self.color {
-			config::BackgroundColor::Default => painter.ctx().style().visuals.dark_mode,
+			config::BackgroundColor::Default => ui.style().visuals.dark_mode,
 			config::BackgroundColor::Light => false,
 			config::BackgroundColor::Dark => true,
 		};
@@ -206,6 +207,8 @@ impl config::Background {
 			}
 		};
 
+		let painter = ui.painter();
+		let rect = ui.max_rect();
 		if self.checkered {
 			draw_checker(painter, rect, primary_color, secondary_color);
 		} else {
@@ -214,7 +217,7 @@ impl config::Background {
 	}
 }
 
-fn show_fullscreen_toggle(ui: &mut egui::Ui) {
+fn show_fullscreen_toggle(ui: &mut Ui) {
 	let Some(mut fullscreen) = ui.input(|input| input.viewport().fullscreen) else {
 		return;
 	};
@@ -223,8 +226,7 @@ fn show_fullscreen_toggle(ui: &mut egui::Ui) {
 		.on_hover_text("Toggle fullscreen (f)")
 		.changed()
 	{
-		let cmd = ViewportCommand::Fullscreen(!fullscreen);
-		ui.ctx().send_viewport_cmd(cmd);
+		ui.send_viewport_cmd(ViewportCommand::Fullscreen(!fullscreen));
 	}
 }
 
@@ -252,37 +254,31 @@ impl App {
 }
 
 impl App {
-	fn show_actions_left(&mut self, ui: &mut egui::Ui) {
+	fn show_actions_left(&mut self, ui: &mut Ui) {
 		if let Some(current_path) = self.image_state.current_path() {
 			let response =
 				ui.add(egui::Label::new(current_path.display().to_string()).sense(egui::Sense::click()));
 			let clicked = response.clicked();
-			let show_copied = ui.ctx().animate_bool_with_time(
-				response.id,
-				clicked,
-				ui.ctx().style().animation_time * 2.0,
-			) > 0.0;
+			let show_copied =
+				ui.animate_bool_with_time(response.id, clicked, ui.style().animation_time * 2.0) > 0.0;
 			response.on_hover_text(if show_copied {
 				"Copied!"
 			} else {
 				"Click to copy"
 			});
 			if clicked {
-				let copied_text = current_path.display().to_string();
-				ui.output_mut(|output| output.copied_text = copied_text);
+				ui.copy_text(current_path.display().to_string());
 			}
 		}
 	}
 
-	fn show_actions_right(&mut self, ui: &mut egui::Ui) {
+	fn show_actions_right(&mut self, ui: &mut Ui) {
 		let mut to_delete = None;
 
 		ui.toggle_value(&mut self.settings_open, "⛭")
 			.on_hover_text("Toggle settings window");
 
 		show_fullscreen_toggle(ui);
-
-		self.config.light_dark_toggle_button(ui);
 
 		if let Some(current) = &mut self.image_state.current {
 			let delete_button = ui.button("🗑");
@@ -316,8 +312,7 @@ impl App {
 
 		if let SlideshowState::Active { remaining } = self.slideshow {
 			ui.label(format!("\u{2398} {} s", remaining.ceil_secs()));
-			ui.ctx()
-				.request_repaint_after(std::time::Duration::from_secs(1));
+			ui.request_repaint_after(std::time::Duration::from_secs(1));
 		}
 
 		if let Some(to_delete) = to_delete {
@@ -325,7 +320,7 @@ impl App {
 		}
 	}
 
-	fn delete_file(&mut self, ui: &egui::Ui, path: Arc<Path>) {
+	fn delete_file(&mut self, ui: &Ui, path: Arc<Path>) {
 		if ui.input(|input| input.modifiers.shift) {
 			self.asking_to_delete = None;
 			self.image_state.delete_file(path);
@@ -334,20 +329,19 @@ impl App {
 		}
 	}
 
-	fn show_actions(&mut self, ctx: &Context) {
+	fn show_actions(&mut self, ui: &mut Ui) {
 		let panel = {
-			let style = ctx.style();
+			let style = ui.style();
 			let frame = Frame {
-				inner_margin: Margin::symmetric(4.0, 2.0),
-				rounding: Rounding::ZERO,
+				inner_margin: Margin::symmetric(4, 2),
 				fill: style.visuals.window_fill(),
 				stroke: style.visuals.window_stroke(),
 				..Default::default()
 			};
-			egui::TopBottomPanel::top("actions").frame(frame)
+			egui::Panel::top("actions").frame(frame)
 		};
 
-		panel.show(ctx, |ui| {
+		panel.show_inside(ui, |ui| {
 			ui.horizontal(|ui| {
 				use egui::{Align, Layout};
 
@@ -361,7 +355,7 @@ impl App {
 		});
 	}
 
-	fn show_sidebar(&mut self, ctx: &Context) {
+	fn show_sidebar(&mut self, ui: &mut Ui) {
 		if !self.config.show_sidebar {
 			return;
 		}
@@ -374,7 +368,7 @@ impl App {
 			return;
 		};
 
-		egui::SidePanel::right("properties").show(ctx, |ui| {
+		egui::Panel::right("properties").show_inside(ui, |ui| {
 			ui.vertical_centered(|ui| {
 				ui.heading("Properties");
 			});
@@ -399,7 +393,7 @@ impl App {
 		});
 	}
 
-	fn show_frames(&mut self, ctx: &Context) {
+	fn show_frames(&mut self, ui: &mut Ui) {
 		if !self.config.show_frames {
 			return;
 		}
@@ -424,7 +418,7 @@ impl App {
 		let outer_frame_size = Vec2::splat(100.0); // XXX 100 is arbitrary; make it configurable?
 
 		let frame_style = {
-			let style = ctx.style();
+			let style = ui.style();
 			Frame {
 				inner_margin: style.spacing.window_margin,
 				fill: style.visuals.window_fill(),
@@ -432,11 +426,11 @@ impl App {
 				..Frame::default()
 			}
 		};
-		egui::TopBottomPanel::bottom("frames")
+		egui::Panel::bottom("frames")
 			.resizable(false)
 			.frame(frame_style)
-			.default_height(outer_frame_size.y + frame_style.inner_margin.sum().y) // may not include the scroll bar, but that's fine. this is just a decent baseline
-			.show(ctx, |ui| {
+			.default_size(outer_frame_size.y + frame_style.inner_margin.sum().y) // may not include the scroll bar, but that's fine. this is just a decent baseline
+			.show_inside(ui, |ui| {
 				egui::ScrollArea::horizontal().show_columns(
 					ui,
 					outer_frame_size.x,
@@ -483,7 +477,7 @@ impl App {
 		}
 	}
 
-	fn show_central(&mut self, ctx: &Context) {
+	fn show_central(&mut self, ui: &mut Ui) {
 		let panel = {
 			let margin = if matches!(
 				self.image_state.current,
@@ -493,13 +487,13 @@ impl App {
 			} else {
 				8.0
 			};
-			let frame = Frame::none()
-				.fill(ctx.style().visuals.window_fill())
+			let frame = Frame::NONE
+				.fill(ui.style().visuals.window_fill())
 				.inner_margin(margin);
 			egui::CentralPanel::default().frame(frame)
 		};
 
-		panel.show(ctx, |ui| match &mut self.image_state.current {
+		panel.show_inside(ui, |ui| match &mut self.image_state.current {
 			Some(state::OpenImage {
 				inner: Ok(state::OpenImageInner {
 					play_state,
@@ -510,7 +504,7 @@ impl App {
 				..
 			}) => {
 				ui.centered_and_justified(|ui| {
-					self.config.background.draw(ui.painter(), ui.max_rect());
+					self.config.background.draw(ui);
 					let size = ui.max_rect().size();
 					let response = match play_state {
 						PlayState::Single => {
@@ -530,13 +524,13 @@ impl App {
 								*playing = !*playing;
 							}
 							if *playing {
-								let elapsed = ctx.input(|input| input.unstable_dt);
+								let elapsed = ui.input(|input| input.unstable_dt);
 								current_frame.advance(
 									Duration::new_secs_f32_saturating(elapsed),
 									image.frames.len(),
 									|idx| image.frames[idx].1,
 								);
-								ctx.request_repaint_after(current_frame.remaining.into());
+								ui.request_repaint_after(current_frame.remaining.into());
 							}
 							response
 						}
@@ -579,6 +573,7 @@ impl App {
 			.resizable(false)
 			.collapsible(true);
 		window.show(ctx, |ui| {
+			#[allow(clippy::unnecessary_debug_formatting, reason = "Intentional")]
 			ui.label(format!(
 				"Delete {:?}?",
 				self.asking_to_delete.as_ref().unwrap()
@@ -662,26 +657,26 @@ impl App {
 }
 
 impl eframe::App for App {
-	fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-		if !ctx.wants_keyboard_input() {
-			self.handle_global_keys(ctx);
+	fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+		if !ui.egui_wants_keyboard_input() {
+			self.handle_global_keys(ui);
 		}
 
-		self.update_slideshow(ctx);
+		self.update_slideshow(ui);
 		self.handle_actor_responses();
-		self.image_state.show_errors(ctx);
+		self.image_state.show_errors(ui);
 
-		self.show_settings(ctx);
-		self.show_asking_to_delete(ctx);
+		self.show_settings(ui);
+		self.show_asking_to_delete(ui);
 
-		self.show_actions(ctx);
-		self.show_sidebar(ctx);
-		self.show_frames(ctx);
-		self.show_central(ctx);
+		self.show_actions(ui);
+		self.show_sidebar(ui);
+		self.show_frames(ui);
+		self.show_central(ui);
 	}
 
 	// NB save is not called without the persistence feature, so on_exit is a better option
-	fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+	fn on_exit(&mut self) {
 		if let Err(error) = self.config.save() {
 			error::show(error.to_string());
 		}

@@ -1,18 +1,18 @@
 use std::path::Path;
+use std::sync::LazyLock;
 
 use egui::{Context, TextureFilter, TextureHandle, TextureOptions, TextureWrapMode};
 use image::{ImageFormat, ImageResult};
-use once_cell::sync::Lazy;
 
 use crate::duration::Duration;
 
 mod read;
 
-static TIMEZONE: Lazy<time::UtcOffset> =
-	Lazy::new(|| time::UtcOffset::current_local_offset().unwrap());
+static TIMEZONE: LazyLock<time::UtcOffset> =
+	LazyLock::new(|| time::UtcOffset::current_local_offset().unwrap());
 
 pub fn init_timezone() {
-	Lazy::force(&TIMEZONE);
+	LazyLock::force(&TIMEZONE);
 }
 
 #[derive(Debug)]
@@ -79,14 +79,15 @@ impl Image {
 		let image = read::read(path, |width, height, frame| {
 			ctx.load_texture(
 				"", // has no importance
-				egui::ColorImage {
-					size: [width.try_into().unwrap(), height.try_into().unwrap()],
-					pixels: frame.into(),
-				},
+				egui::ColorImage::new(
+					[width.try_into().unwrap(), height.try_into().unwrap()],
+					frame.into(),
+				),
 				TextureOptions {
 					magnification: TextureFilter::Nearest,
 					minification: TextureFilter::Linear,
-					wrap_mode: TextureWrapMode::default(),
+					wrap_mode: TextureWrapMode::ClampToEdge,
+					mipmap_mode: None,
 				},
 			)
 		})?;
