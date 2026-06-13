@@ -3,8 +3,7 @@ use std::path::Path;
 
 use egui::Color32;
 use image::error::{DecodingError, ImageError, ImageFormatHint, ImageResult};
-use image::io::Limits;
-use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat};
+use image::{AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat, Limits};
 
 use super::{Image, Metadata};
 use crate::duration::Duration;
@@ -27,47 +26,47 @@ fn load_decoder<V: DecoderVisitor>(
 	format: ImageFormat,
 	visitor: V,
 ) -> ImageResult<V::Return> {
-	macro_rules! visitors {
-		(@arm @png $($decoder:ident)::*) => {{
-			let decoder = image::codecs:: $($decoder)::* ::new(reader)?;
+	macro_rules! dec {
+		($($name:ident)::+) => {
+			visitor.visit(image::codecs::$($name)::+::new(reader)?, format)
+		};
+	}
+
+	match format {
+		ImageFormat::Png => {
+			let decoder = image::codecs::png::PngDecoder::new(reader)?;
 			if decoder.is_apng()? {
 				visitor.visit_animated(decoder.apng()?, format)
 			} else {
 				visitor.visit(decoder, format)
 			}
-		}};
-		(@arm @animated $($decoder:ident)::*) => {
-			visitor.visit_animated(image::codecs:: $($decoder)::* ::new(reader)?, format)
-		};
-		(@arm $($decoder:ident)::*) => {
-			visitor.visit(image::codecs:: $($decoder)::* ::new(reader)?, format)
-		};
-		($($format:ident => $(@$special:tt)? $($decoder:ident)::*),* $(,)?) => {
-			match format {
-				$(ImageFormat::$format => visitors!(@arm $(@$special)? $($decoder)::*),)*
-				_ => Err(ImageError::Unsupported(
-					ImageFormatHint::Exact(format).into(),
-				)),
+		}
+		ImageFormat::Gif => {
+			visitor.visit_animated(image::codecs::gif::GifDecoder::new(reader)?, format)
+		}
+		ImageFormat::WebP => {
+			let decoder = image::codecs::webp::WebPDecoder::new(reader)?;
+			if decoder.has_animation() {
+				visitor.visit_animated(decoder, format)
+			} else {
+				visitor.visit(decoder, format)
 			}
-		};
-	}
-
-	visitors! {
-		Avif => avif::AvifDecoder,
-		Png => @png png::PngDecoder,
-		Gif => @animated gif::GifDecoder,
-		Jpeg => jpeg::JpegDecoder,
-		WebP => @animated webp::WebPDecoder,
-		Tiff => tiff::TiffDecoder,
-		Tga => tga::TgaDecoder,
-		Dds => dds::DdsDecoder,
-		Bmp => bmp::BmpDecoder,
-		Ico => ico::IcoDecoder,
-		Hdr => hdr::HdrDecoder,
-		OpenExr => openexr::OpenExrDecoder,
-		Pnm => pnm::PnmDecoder,
-		Qoi => qoi::QoiDecoder,
-		Farbfeld => farbfeld::FarbfeldDecoder,
+		}
+		ImageFormat::Avif => dec!(avif::AvifDecoder),
+		ImageFormat::Jpeg => dec!(jpeg::JpegDecoder),
+		ImageFormat::Tiff => dec!(tiff::TiffDecoder),
+		ImageFormat::Tga => dec!(tga::TgaDecoder),
+		ImageFormat::Dds => dec!(dds::DdsDecoder),
+		ImageFormat::Bmp => dec!(bmp::BmpDecoder),
+		ImageFormat::Ico => dec!(ico::IcoDecoder),
+		ImageFormat::Hdr => dec!(hdr::HdrDecoder),
+		ImageFormat::OpenExr => dec!(openexr::OpenExrDecoder),
+		ImageFormat::Pnm => dec!(pnm::PnmDecoder),
+		ImageFormat::Qoi => dec!(qoi::QoiDecoder),
+		ImageFormat::Farbfeld => dec!(farbfeld::FarbfeldDecoder),
+		_ => Err(ImageError::Unsupported(
+			ImageFormatHint::Exact(format).into(),
+		)),
 	}
 }
 
@@ -168,7 +167,7 @@ pub fn read<OutFrameType>(
 	load_frame: impl FnMut(u32, u32, Frame) -> OutFrameType,
 ) -> ImageResult<Image<OutFrameType>> {
 	let metadata = Metadata::from_path(path)?;
-	let reader = image::io::Reader::open(path)?;
+	let reader = image::ImageReader::open(path)?;
 	let reader = reader.with_guessed_format()?;
 	let format = reader.format().ok_or_else(|| {
 		ImageError::Unsupported(ImageFormatHint::PathExtension(path.to_owned()).into())

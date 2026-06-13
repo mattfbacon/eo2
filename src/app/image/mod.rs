@@ -99,7 +99,7 @@ impl Image {
 			.iter()
 			.map(|(frame, _delay)| {
 				let [width, height] = frame.size();
-				let pixel_size = std::mem::size_of::<egui::Color32>();
+				let pixel_size = size_of::<egui::Color32>();
 				width.saturating_mul(height).saturating_mul(pixel_size)
 			})
 			.sum()
