@@ -89,7 +89,10 @@ impl<OutFrameType, F: FnMut(u32, u32, Frame) -> OutFrameType> DecoderVisitor for
 		limits.max_alloc = Some(1024 * 1024 * 1024); // 1 GB
 		limits.reserve(decoder.total_bytes())?;
 		decoder.set_limits(limits)?;
-		let image = DynamicImage::from_decoder(decoder)?.into_rgba8();
+		let orientation = decoder.orientation()?;
+		let mut image = DynamicImage::from_decoder(decoder)?;
+		image.apply_orientation(orientation);
+		let image = image.into_rgba8();
 		let (width, height) = image.dimensions();
 		// `egui::Color32` and `image::Rgba<u8>` have the same size (4) and align (1) so `cast_vec` will never fail
 		let frame = bytemuck::allocation::cast_vec(image.into_raw());
